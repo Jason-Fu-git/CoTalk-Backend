@@ -2,7 +2,11 @@ from functools import wraps
 
 from utils.utils_request import request_failed
 
-MAX_CHAR_LENGTH = 255
+
+# 字长限制
+MAX_MESSAGE_LENGTH = 1000
+MAX_NAME_LENGTH = 50
+MAX_EMAIL_LENGTH = 100
 
 
 # A decorator function for processing `require` in view function.
