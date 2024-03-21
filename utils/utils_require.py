@@ -22,7 +22,7 @@ def CheckRequire(check_fn):
     return decorated
 
 
-def require(body, key, dtype="string", err_msg=None, err_code=-7):
+def require(body, key, dtype="string", err_msg=None, err_code=-7, is_essential=True):
     """
     从 body 中获取 key 对应的值，并检查其类型是否为 type。
     如果类型不匹配，则抛出 KeyError 异常。
@@ -31,12 +31,16 @@ def require(body, key, dtype="string", err_msg=None, err_code=-7):
     :param dtype: 期望的类型
     :param err_msg: 自定义错误信息
     :param err_code: 自定义错误码
+    :param is_essential: 是否为必需字段
     :return: body[key]
     :raise: KeyError
     """
     if key not in body.keys():
-        raise KeyError(err_msg if err_msg is not None
-                       else f"Invalid parameters. Expected `{key}`, but not found.", err_code)
+        if is_essential:
+            raise KeyError(err_msg if err_msg is not None
+                           else f"Invalid parameters. Expected `{key}`, but not found.", err_code)
+        else:
+            return None
 
     val = body[key]
 

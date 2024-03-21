@@ -23,7 +23,7 @@ def request_success(data={}):
     """
     return JsonResponse({
         "code": 0,
-        "info": "Succeed",
+        "info": "Success",
         **data
     })
 
@@ -42,6 +42,15 @@ def return_field(obj_dict, field_list):
         k: v for k, v in obj_dict.items()
         if k in field_list
     }
+
+
+def BAD_REQUEST(info):
+    """
+    各种400情况
+    :param info: 错误信息
+    :return: JsonResponse
+    """
+    return request_failed(-7, info, 400)
 
 
 def NOT_FOUND(info):
@@ -81,4 +90,4 @@ def PRECONDITION_FAILED(info):
 
 
 BAD_METHOD = request_failed(-3, "Bad method", 405)
-SEVER_ERROR = request_failed(-4, "Server error", 500)
+SERVER_ERROR = request_failed(-4, "Server error", 500)
