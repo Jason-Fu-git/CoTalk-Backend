@@ -5,9 +5,12 @@ import time
 import json
 import base64
 from typing import Optional
+from django.http import HttpRequest
+
 
 # c.f. https://thuse-course.github.io/course-index/basic/jwt/#jwt
 # !Important! Change this to your own salt, better randomly generated!"
+
 SALT = ("KawaiiNana" + datetime.datetime.now().strftime("%Y%m%d%H%M")).encode("utf-8")
 EXPIRE_IN_SECONDS = 60 * 60 * 24 * 1  # 1 day
 ALT_CHARS = "-_".encode("utf-8")
@@ -27,7 +30,7 @@ def b64url_decode(s: str, decode_to_str=True):
         return base64.b64decode(s, altchars=ALT_CHARS)
 
 
-def generate_jwt_token(username: str):
+def generate_jwt_token(user_id):
     # * header
     header = {
         "alg": "HS256",
@@ -43,7 +46,7 @@ def generate_jwt_token(username: str):
         "iat": int(time.time()),
         "exp": int(time.time()) + EXPIRE_IN_SECONDS,
         "data": {
-            "username": username
+            "user_id": user_id
             # And more data for your own usage
         }
     }
@@ -81,3 +84,21 @@ def check_jwt_token(token: str) -> Optional[dict]:
         return None
 
     return payload["data"]
+
+
+def verify_a_user(user_id: str, req: HttpRequest) -> bool:
+    # check jwt token
+    jwt_token = req.headers.get("Authorization")
+    if jwt_token is None:
+        raise KeyError("Missing Authorization header")
+
+    # get jwt data
+    jwt_data = check_jwt_token(jwt_token)
+
+    if jwt_data is None:
+        raise ValueError("Unauthorized")
+
+    if jwt_data["user_id"] != user_id:
+        raise ValueError("Unauthorized")
+
+    return True
