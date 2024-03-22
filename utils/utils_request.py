@@ -89,5 +89,8 @@ def PRECONDITION_FAILED(info):
     return request_failed(-6, info, 412)
 
 
+def SERVER_ERROR(info):
+    return request_failed(-4, info, 500)
+
+
 BAD_METHOD = request_failed(-3, "Bad method", 405)
-SERVER_ERROR = request_failed(-4, "Server error", 500)

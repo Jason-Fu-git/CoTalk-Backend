@@ -1,6 +1,6 @@
 from functools import wraps
 
-from utils.utils_request import request_failed
+from utils.utils_request import request_failed, BAD_REQUEST, SERVER_ERROR, UNAUTHORIZED
 
 # 字长限制
 MAX_MESSAGE_LENGTH = 1000
@@ -8,21 +8,24 @@ MAX_NAME_LENGTH = 50
 MAX_EMAIL_LENGTH = 100
 
 
-# A decorator function for processing `require` in view function.
-def CheckRequire(check_fn):
+# A decorator function for error processing
+def CheckError(check_fn):
     @wraps(check_fn)
     def decorated(*args, **kwargs):
         try:
             return check_fn(*args, **kwargs)
         except Exception as e:
             # Handle exception e
-            error_code = -7 if len(e.args) < 2 else e.args[1]  # Bad request 默认为 -7
-            return request_failed(error_code, e.args[0], 400)  # Refer to below
+            if isinstance(e, KeyError) or isinstance(e, NotImplementedError):
+                return BAD_REQUEST(str(e))
+            if isinstance(e, ValueError) and str(e) == 'Unauthorized':
+                return UNAUTHORIZED(str(e))
+            return SERVER_ERROR(f"Server error: {e}")  # 500
 
     return decorated
 
 
-def require(body, key, dtype="string", err_msg=None, err_code=-7, is_essential=True):
+def require(body, key, dtype="string", err_msg=None, is_essential=True):
     """
     从 body 中获取 key 对应的值，并检查其类型是否为 type。
     如果类型不匹配，则抛出 KeyError 异常。
@@ -30,7 +33,6 @@ def require(body, key, dtype="string", err_msg=None, err_code=-7, is_essential=T
     :param key: 键名
     :param dtype: 期望的类型
     :param err_msg: 自定义错误信息
-    :param err_code: 自定义错误码
     :param is_essential: 是否为必需字段
     :return: body[key]
     :raise: KeyError
@@ -38,7 +40,7 @@ def require(body, key, dtype="string", err_msg=None, err_code=-7, is_essential=T
     if key not in body.keys():
         if is_essential:
             raise KeyError(err_msg if err_msg is not None
-                           else f"Invalid parameters. Expected `{key}`, but not found.", err_code)
+                           else f"Invalid parameters. Expected `{key}`, but not found.")
         else:
             return None
 
@@ -52,28 +54,28 @@ def require(body, key, dtype="string", err_msg=None, err_code=-7, is_essential=T
             val = int(val)
             return val
         except:
-            raise KeyError(err_msg, err_code)
+            raise KeyError(err_msg)
 
     elif dtype == "float":
         try:
             val = float(val)
             return val
         except:
-            raise KeyError(err_msg, err_code)
+            raise KeyError(err_msg)
 
     elif dtype == "string":
         try:
             val = str(val)
             return val
         except:
-            raise KeyError(err_msg, err_code)
+            raise KeyError(err_msg)
 
     elif dtype == "array":
         try:
             assert isinstance(val, list)
             return val
         except:
-            raise KeyError(err_msg, err_code)
+            raise KeyError(err_msg)
 
     else:
-        raise NotImplementedError(f"Type `{dtype}` not implemented.", err_code)
+        raise NotImplementedError(f"Type `{dtype}` not implemented.")

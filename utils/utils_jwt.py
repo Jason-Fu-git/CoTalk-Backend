@@ -7,7 +7,6 @@ import base64
 from typing import Optional
 from django.http import HttpRequest
 
-from utils.utils_request import BAD_REQUEST, UNAUTHORIZED
 
 # c.f. https://thuse-course.github.io/course-index/basic/jwt/#jwt
 # !Important! Change this to your own salt, better randomly generated!"
@@ -91,15 +90,15 @@ def verify_a_user(user_id: str, req: HttpRequest) -> bool:
     # check jwt token
     jwt_token = req.headers.get("Authorization")
     if jwt_token is None:
-        raise BAD_REQUEST("Missing Authorization header")
+        raise KeyError("Missing Authorization header")
 
     # get jwt data
     jwt_data = check_jwt_token(jwt_token)
 
     if jwt_data is None:
-        raise UNAUTHORIZED("Unauthorized")
+        raise ValueError("Unauthorized")
 
     if jwt_data["user_id"] != user_id:
-        raise UNAUTHORIZED("Unauthorized")
+        raise ValueError("Unauthorized")
 
     return True
