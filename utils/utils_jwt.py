@@ -65,7 +65,8 @@ def check_jwt_token(token: str) -> Optional[dict]:
     # * Split token
     try:
         header_b64, payload_b64, signature_b64 = token.split(".")
-    except:
+    except Exception as e:
+        print(str(e))
         return None
 
     payload_str = b64url_decode(payload_b64)
