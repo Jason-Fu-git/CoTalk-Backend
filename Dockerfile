@@ -8,7 +8,7 @@ COPY requirements.txt .
 
 RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 
-RUN chomd +x start.sh
+RUN chmod +x start.sh
 
 COPY . .
 
