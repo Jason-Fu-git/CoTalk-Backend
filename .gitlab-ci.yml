@@ -27,7 +27,7 @@ unit-test:
     - python manage.py makemigrations chat
     - python manage.py makemigrations message
     - python manage.py migrate
-    - ./test.sh
+    - chmod +x ./test.sh
   after_script:
     - SUFFIX=$RANDOM
     - curl "http://api.secoder.net/static/sonar-scanner.tar.gz" -s -o "/tmp/sonar-$SUFFIX.tar.gz"
