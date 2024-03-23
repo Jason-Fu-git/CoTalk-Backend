@@ -15,7 +15,6 @@ build:
     - deployer build
   only:
     - master
-    - test/jason/ci
 
 unit-test:
   image: python:3.9
@@ -36,7 +35,6 @@ unit-test:
     - /opt/sonar-scanner/bin/sonar-scanner
   only:
     - master
-    - test/jason/ci
 
 deploy:
   stage: deploy
@@ -44,4 +42,3 @@ deploy:
     - deployer dyno replace $CI_PROJECT_NAME "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG" "$REGISTRY_USER" "$REGISTRY_PWD"
   only:
     - master
-    - test/jason/ci
