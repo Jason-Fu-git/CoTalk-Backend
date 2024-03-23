@@ -126,9 +126,8 @@ def update_or_delete(req: HttpRequest, user_id):
                         user.password = password
 
                     if user_email is not None:
-                        if user_email is not None:
-                            if not re.match(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$", user_email):
-                                return BAD_REQUEST("Invalid email address")
+                        if not re.match(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$", user_email):
+                            return BAD_REQUEST("Invalid email address")
                         user.user_email = user_email
 
                     if avatar is not None:
