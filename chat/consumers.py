@@ -1,9 +1,11 @@
 import json
 from channels.generic.websocket import WebsocketConsumer
 from asgiref.sync import async_to_sync
+from django.utils import timezone
 
 class ChatConsumer(WebsocketConsumer):
     def connect(self):
+        self.user=self.scope['user']
         self.room_group_name=f'chat_simple'
         #加入群组
         async_to_sync(self.channel_layer.group_add)(
@@ -23,12 +25,15 @@ class ChatConsumer(WebsocketConsumer):
         print("Backend ChatConsumer receive: "+text_data)
         text_data_json=json.loads(text_data)
         message=text_data_json['message']
+        now=timezone.now()
         #将消息发到群组
         async_to_sync(self.channel_layer.group_send)(
             self.room_group_name,
             {
                 'type' : 'chat_message',
                 'message' : message,
+                'datetime': now.isoformat(),
+                'user': self.user.user_name,
             }
         )
         self.send(text_data=json.dumps({'message':message}))

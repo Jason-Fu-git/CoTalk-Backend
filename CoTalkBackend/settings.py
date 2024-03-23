@@ -126,7 +126,7 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # 大作业额外设置
-ASGI_APPLICATION='BackTest.asgi.application'
+ASGI_APPLICATION='CoTalkBackend.asgi.application'
 
 CHANNEL_LAYERS = {
     'default': {
