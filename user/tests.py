@@ -172,6 +172,14 @@ class UserTestCase(TestCase):
                                token=login_admin.json()['token'],
                                user_name='')
         self.assertEqual(response.status_code, 400)
+        response = self.update(user_id=login_admin.json()['user_id'],
+                               token=login_admin.json()['token'],
+                               password='')
+        self.assertEqual(response.status_code, 400)
+        response = self.update(user_id=login_admin.json()['user_id'],
+                               token=login_admin.json()['token'],
+                               user_email='123@')
+        self.assertEqual(response.status_code, 400)
 
     # === delete section ===
     def test_delete_success(self):
