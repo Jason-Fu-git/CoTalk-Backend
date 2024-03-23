@@ -12,4 +12,4 @@ COPY . .
 
 EXPOSE 80
 
-CMD ["chmod +x ./start.sh"]
+CMD ["chmod +x start.sh", "./start.sh"]
