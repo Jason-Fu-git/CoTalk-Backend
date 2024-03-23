@@ -12,7 +12,7 @@ build:
     - export BUILD_IMAGE_TAG=$CI_COMMIT_REF_SLUG
     - export BUILD_IMAGE_USERNAME=$CI_REGISTRY_USER
     - export BUILD_IMAGE_PASSWORD=$CI_REGISTRY_PASSWORD
-    - deployer build
+    - deployer build BUILD_IMAGE_NAME=CoChatBackend
   only:
     - master
     - test/jason/ci
