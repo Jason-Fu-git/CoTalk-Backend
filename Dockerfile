@@ -6,9 +6,11 @@ WORKDIR /app
 
 COPY requirements.txt .
 
+COPY . .
+
 RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 
-COPY . .
+RUN chmod +x start.sh
 
 EXPOSE 80
 
