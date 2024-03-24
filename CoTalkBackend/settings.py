@@ -32,6 +32,8 @@ ALLOWED_HOSTS = [
 # Application definition
 
 INSTALLED_APPS = [
+    'channels',
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -41,9 +43,6 @@ INSTALLED_APPS = [
     "user.apps.UserConfig",
     "chat.apps.ChatConfig",
     "message.apps.MessageConfig",
-
-    'channels',
-    'daphne',
 ]
 
 MIDDLEWARE = [
@@ -127,7 +126,7 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # 大作业额外设置
-ASGI_APPLICATION='CoTalkBackend.asgi.application'
+ASGI_APPLICATION = 'CoTalkBackend.asgi.application'
 
 CHANNEL_LAYERS = {
     'default': {
