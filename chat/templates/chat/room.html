@@ -6,66 +6,102 @@
     <div id="chat">
     </div>
     <div id="chat-input">
+        <input id="user_name" type="text">
+        <input id="password" type="password">
+        <input id="login" type="submit" value="Login">
         <input id="chat-message-input" type="text">
         <input id="chat-message-submit" type="submit" value="Send">
     </div>
 {% endblock %}
 
 {% block include_js %}
-<script>
-    document.addEventListener('DOMContentLoaded', (event) => {
-        // DOM loaded
-        const url='ws://'+window.location.host+
-            '/ws/chat/room/';
-        const chatSocket=new WebSocket(url);
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            // DOM loaded
 
-        //客户端收到消息时触发
-        chatSocket.onmessage=function(event) {
-            const data=JSON.parse(event.data);
-            const chat=document.getElementById('chat');
+            const input = document.getElementById('chat-message-input');
+            const submitButton = document.getElementById('chat-message-submit');
+            const user_name_input = document.getElementById('user_name');
+            const password_input = document.getElementById('password');
+            const login_button = document.getElementById('login');
 
-            //防止自己发给自己
-            if (data.type)
-            {
-                console.log("Frontend receive: ");
-                console.log(event);
-                //将新消息添加到后面
-                chat.innerHTML+='<div class="message">'+
-                    data.message+'</div>';
-                chat.scrollTop=chat.scrollHeight;
-            }
-        };
+            login_button.addEventListener('click', function (event) {
+                    const user_name = user_name_input.value;
+                    const password = password_input.value;
+                    if (user_name && password) {
+                        console.log("Frontend send:");
+                        console.log(user_name);
+                        console.log(password);
+                        fetch('/api/user/login', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                user_name,
+                                password
+                            })
+                        }).then((res) => res.json())
+                            .then((res) => {
+                                if (Number(res.code) === 0) {
+                                    console.log(res)
+                                    const jwt_token = res.token;
+                                    const user_id = res.user_id;
+                                    console.log("Frontend get:");
+                                    console.log(jwt_token);
+                                    const url = 'ws://' + window.location.host +
+                                        '/ws/chat/room/?Authorization=' + jwt_token + '&user_id=' + user_id;
+                                    const chatSocket = new WebSocket(url);
 
-        chatSocket.onclose=function(event) {
-            console.error('Chat socket closed unexpectedly');
-        };
+                                    //客户端收到消息时触发
+                                    chatSocket.onmessage = function (event) {
+                                        const data = JSON.parse(event.data);
+                                        const chat = document.getElementById('chat');
 
-        const input=document.getElementById('chat-message-input');
-        const submitButton=document.getElementById('chat-message-submit');
+                                        //防止自己发给自己
+                                        if (data.type) {
+                                            console.log("Frontend receive: ");
+                                            console.log(event);
+                                            //将新消息添加到后面
+                                            chat.innerHTML += '<div class="message">' +
+                                                data.message + '</div>';
+                                            chat.scrollTop = chat.scrollHeight;
+                                        }
+                                    };
 
-        submitButton.addEventListener('click', function(event) {
-            const message=input.value;
-            if (message)
-            {
-                console.log("Frontend send:");
-                console.log(message);
-                chatSocket.send(JSON.stringify({'message':message}));
+                                    chatSocket.onclose = function (event) {
+                                        console.error('Chat socket closed unexpectedly');
+                                    };
 
-                input.value='';
-                input.focus();
-            }
-        });
+                                    submitButton.addEventListener('click', function (event) {
+                                        const message = input.value;
+                                        if (message) {
+                                            console.log("Frontend send:");
+                                            console.log(message);
+                                            chatSocket.send(JSON.stringify({'message': message}));
 
-        input.addEventListener('keypress', function(event) {
-            if (event.key=='Enter')
-            {
-                //使用Enter也可以发送
-                event.preventDefault();
-                submitButton.click();
-            }
-        });
+                                            input.value = '';
+                                            input.focus();
+                                        }
+                                    });
 
-        input.focus();
-    })
-</script>
+                                    input.addEventListener('keypress', function (event) {
+                                        if (event.key == 'Enter') {
+                                            //使用Enter也可以发送
+                                            event.preventDefault();
+                                            submitButton.click();
+                                        }
+                                    });
+
+                                }
+                            }).catch(error => {
+                            console.log('There was an error!', error);
+                        })
+                    }
+
+
+                }
+            );
+        })
+    </script>
 {% endblock %}

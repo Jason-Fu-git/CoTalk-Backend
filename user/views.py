@@ -65,7 +65,6 @@ def login(req: HttpRequest):
         return BAD_METHOD
 
     body = json.loads(req.body.decode("utf-8"))
-
     user_name = require(body, "user_name", "string", err_msg="Missing or error type of [user_name]")
     password = require(body, "password", "string", err_msg="Missing or error type of [password]")
     # todo : 后续添加2FA接口
