@@ -152,11 +152,12 @@ def friend_management(req: HttpRequest, user_id):
         if User.objects.filter(user_id=user_id).exists():
             if verify_a_user(user_id, req):
                 # verification passed
-                if req == 'GET':
+                if req.method == 'GET':
                     friends = User.objects.get(user_id=user_id).get_friends()
                     return request_success({
                         "friends": [
-                            return_field(friend.serialize(), ['user_id', 'user_name', 'user_email'])
+                            return_field(User.objects.get(user_id=friend['friend']).serialize(),
+                                         ['user_id', 'user_name', 'user_email'])
                             for friend in friends
                         ]
                     })
@@ -164,11 +165,12 @@ def friend_management(req: HttpRequest, user_id):
                     body = json.loads(req.body.decode("utf-8"))
 
                     friend_id = require(body, 'friend_id', 'int')
-                    approve = require(body, 'approve', 'bool')
+                    approve = require(body, 'approve', 'bool', is_essential=False)
+                    if approve is None:
+                        approve = True
 
                     friend = User.objects.filter(user_id=friend_id)
                     if friend.exists():
-                        friend = friend.first()
                         ABFriendship = Friendship.objects.filter(user_id=user_id, friend__user_id=friend_id)
                         BAFriendship = Friendship.objects.filter(user_id=friend_id, friend__user_id=user_id)
                         if BAFriendship.exists():
@@ -177,19 +179,22 @@ def friend_management(req: HttpRequest, user_id):
                                     ABFriendship.delete()
                                     BAFriendship.delete()
                                     # todo : 利用websocket通知好友
-                                else:  # 响应好友请求
-                                    if approve:  # 同意请求
-                                        Friendship.objects.create(user=User.objects.get(user_id=user_id),
-                                                                  friend=User.objects.get(user_id=friend_id),
-                                                                  approve=True).save()
-                                        # todo : 利用websocket通知好友
-                                    else:  # 拒绝请求
-                                        BAFriendship.delete()
-                                        # todo : 利用websocket通知好友
+                            else:  # 响应好友请求
+                                if approve:  # 同意请求
+                                    Friendship.objects.create(user=User.objects.get(user_id=user_id),
+                                                              friend=User.objects.get(user_id=friend_id),
+                                                              is_approved=True).save()
+                                    BAFriendship = BAFriendship.first()
+                                    BAFriendship.is_approved = True
+                                    BAFriendship.save()
+                                    # todo : 利用websocket通知好友
+                                else:  # 拒绝请求
+                                    BAFriendship.delete()
+                                    # todo : 利用websocket通知好友
                         else:  # 发起请求
                             Friendship.objects.create(user=User.objects.get(user_id=user_id),
                                                       friend=User.objects.get(user_id=friend_id),
-                                                      approve=True).save()
+                                                      is_approved=False).save()  # 首次请求的APPROVE应该是False
                             # todo : 利用websocket通知好友
                         return request_success()
                     else:
