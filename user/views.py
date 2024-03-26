@@ -206,9 +206,7 @@ def friend_management(req: HttpRequest, user_id):
 @CheckError
 def search_for_users(req: HttpRequest):
     if req.method == 'GET':
-        body = json.loads(req.body.decode("utf-8"))
-
-        search_text = require(body, 'search_text', 'string', is_essential=False)
+        search_text = req.GET.get('search_text', None)
         if search_text is None or search_text == '':  # 搜索文字为空，返回所有用户
             users = User.objects.all()
             return request_success({
