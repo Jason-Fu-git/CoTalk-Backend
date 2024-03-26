@@ -1,21 +1,38 @@
 from django.test import TestCase
 from .models import User
 from utils.utils_jwt import generate_jwt_token
+import json
 
 
 class UserTestCase(TestCase):
 
     def setUp(self):
-        admin = User.objects.create(
+        self.admin = User.objects.create(
             user_name='admin',
             password='admin_pwd',
         )
-        admin.save()
-        guest = User.objects.create(
+        self.admin.save()
+        self.guest = User.objects.create(
             user_name='guest',
             password='guest_pwd',
+            user_email='guest@Athens.com',
         )
-        guest.save()
+        self.guest.save()
+        self.socrates = User.objects.create(
+            user_name='Athens_socrates',
+            password='socrates_pwd',
+        )
+        self.socrates.save()
+        self.plato = User.objects.create(
+            user_name='Athens_plato',
+            password='plato_pwd',
+        )
+        self.plato.save()
+        self.aristotle = User.objects.create(
+            user_name='Athens_aristotle',
+            password='aristotle_pwd',
+        )
+        self.aristotle.save()
 
     # ! Util section
     def register(self, user_name, password, user_email=None, user_icon=None):
@@ -198,3 +215,127 @@ class UserTestCase(TestCase):
         response = self.delete(user_id=self.login(user_name='admin', password='admin_pwd').json()['user_id'],
                                token=self.login(user_name='guest', password='guest_pwd').json()['token'])
         self.assertEqual(response.status_code, 401)
+
+    # === friend section ===
+    def test_search_success(self):
+        response = self.client.get(path='/api/user/', data={'search_text': "Athens"}, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        users = response.json()['users']
+        self.assertEqual(len(users), 4)
+        response = self.client.get(path='/api/user/', data={'search_text': ""}, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        users = response.json()['users']
+        self.assertEqual(len(users), 5)
+        response = self.client.get(path='/api/user/', content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        users = response.json()['users']
+        self.assertEqual(len(users), 5)
+
+    def test_friend_request_success(self):
+        plato_token = self.login(user_name='Athens_plato', password='plato_pwd').json()['token']
+        socrates_token = self.login(user_name='Athens_socrates', password='socrates_pwd').json()['token']
+        aristotle_token = self.login(user_name='Athens_aristotle', password='aristotle_pwd').json()['token']
+        # socrates makes friend with plato
+        self.client.put(path=f'/api/user/{self.socrates.user_id}/friends',
+                        data={'friend_id': self.plato.user_id},
+                        content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.client.put(path=f'/api/user/{self.plato.user_id}/friends',
+                        data={'friend_id': self.socrates.user_id},
+                        content_type='application/json', HTTP_AUTHORIZATION=plato_token)
+        # plato makes friend with aristotle
+        self.client.put(path=f'/api/user/{self.plato.user_id}/friends',
+                        data={'friend_id': self.aristotle.user_id},
+                        content_type='application/json', HTTP_AUTHORIZATION=plato_token)
+        self.client.put(path=f'/api/user/{self.aristotle.user_id}/friends',
+                        data={'friend_id': self.plato.user_id},
+                        content_type='application/json', HTTP_AUTHORIZATION=aristotle_token)
+        # plato has two friends
+        response = self.client.get(path=f'/api/user/{self.plato.user_id}/friends',
+                                   content_type='application/json', HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['friends']), 2)
+        # plato breaks friendship with aristotle
+        self.client.put(path=f'/api/user/{self.plato.user_id}/friends',
+                        data={'friend_id': self.aristotle.user_id,
+                              'approve': False},
+                        content_type='application/json', HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(len(self.plato.get_friends()), 1)
+        # aristotle tries to make friends with socrates
+        self.client.put(path=f'/api/user/{self.aristotle.user_id}/friends',
+                        data={'friend_id': self.socrates.user_id},
+                        content_type='application/json', HTTP_AUTHORIZATION=aristotle_token)
+        self.assertEqual(len(self.aristotle.get_friends()), 0)
+        # however, socrates disapproves
+        self.client.put(path=f'/api/user/{self.socrates.user_id}/friends',
+                        data={'friend_id': self.aristotle.user_id,
+                              'approve': False},
+                        content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(len(self.aristotle.get_friends()), 0)
+        self.assertEqual(len(self.socrates.get_friends()), 1)
+        # test the corner case
+        self.client.put(path=f'/api/user/{self.plato.user_id}/friends',
+                        data={'friend_id': self.socrates.user_id},
+                        content_type='application/json', HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(len(self.plato.get_friends()), 1)
+        self.client.put(path=f'/api/user/{self.aristotle.user_id}/friends',
+                        data={'friend_id': self.socrates.user_id,
+                              'approve': False},
+                        content_type='application/json', HTTP_AUTHORIZATION=aristotle_token)
+        self.client.put(path=f'/api/user/{self.socrates.user_id}/friends',
+                        data={'friend_id': self.aristotle.user_id,
+                              'approve': True},
+                        content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(len(self.aristotle.get_friends()), 1)
+
+    def test_friend_bad_method(self):
+        response = self.client.post(f'/api/user/{self.guest.user_id}/friends')
+        self.assertEqual(response.status_code, 405)
+        response = self.client.delete(f'/api/user/{self.guest.user_id}/friends')
+        self.assertEqual(response.status_code, 405)
+        response = self.client.put(f'/api/user/')
+        self.assertEqual(response.status_code, 405)
+        response = self.client.delete(f'/api/user/')
+        self.assertEqual(response.status_code, 405)
+        response = self.client.post(f'/api/user/')
+        self.assertEqual(response.status_code, 405)
+
+    def test_friend_unauthenticated(self):
+        response = self.client.put(f'/api/user/{self.guest.user_id}/friends',
+                                   data={'friend_id': self.aristotle.user_id},
+                                   content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        response = self.client.get(f'/api/user/{self.guest.user_id}/friends',
+                                   content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        admin_token = self.login(user_name='admin', password='admin_pwd').json()['token']
+        response = self.client.get(f'/api/user/{self.guest.user_id}/friends',
+                                   HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 401)
+
+    def test_friend_not_found(self):
+        response = self.client.put(f'/api/user/10000/friends')
+        self.assertEqual(response.status_code, 404)
+        response = self.client.get(f'/api/user/10000/friends')
+        self.assertEqual(response.status_code, 404)
+        admin_token = self.login(user_name='admin', password='admin_pwd').json()['token']
+        response = self.client.put(f'/api/user/{self.admin.user_id}/friends',
+                                   data={'friend_id': 10000},
+                                   content_type='application/json',
+                                   HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()['info'], 'Invalid friend id')
+
+    def test_friend_bad_request(self):
+        guest_token = self.login(user_name='guest', password='guest_pwd').json()['token']
+        response = self.client.put(f'/api/user/{self.guest.user_id}/friends',
+                                   HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 400)
+        response = self.client.put(path=f'/api/user/{self.guest.user_id}/friends',
+                                   data={'friend_id': 'hello'},
+                                   content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 400)
+        response = self.client.put(path=f'/api/user/{self.guest.user_id}/friends',
+                                   data={'friend_id': self.guest.user_id,
+                                         'approve': 'OK'},
+                                   content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 400)
