@@ -201,3 +201,30 @@ def friend_management(req: HttpRequest, user_id):
             return NOT_FOUND("Invalid user id")  # 404
     else:
         return BAD_METHOD
+
+
+@CheckError
+def search_for_users(req: HttpRequest):
+    if req.method == 'GET':
+        body = json.loads(req.body.decode("utf-8"))
+
+        search_text = require(body, 'search_text', 'string', is_essential=False)
+        if search_text is None or search_text == '':  # 搜索文字为空，返回所有用户
+            users = User.objects.all()
+            return request_success({
+                'users': [
+                    return_field(user.serialize(), ['user_id', 'user_name', 'user_email'])
+                    for user in users
+                ]
+            })
+        else:  # 根据搜索文本返回
+            users = User.objects.filter(user_name__contains=search_text) | User.objects.filter(
+                user_email__contains=search_text)
+            return request_success({
+                'users': [
+                    return_field(user.serialize(), ['user_id', 'user_name', 'user_email'])
+                    for user in users
+                ]
+            })
+    else:
+        return BAD_METHOD
