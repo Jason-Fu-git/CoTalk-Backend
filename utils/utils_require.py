@@ -79,5 +79,17 @@ def require(body, key, dtype="string", err_msg=None, is_essential=True):
         except:
             raise KeyError(err_msg)
 
+    elif dtype == 'bool':
+        try:
+            val = str(val)
+            if val == 'True' or val == 'true' or val == 'Yes' or val == 'yes':
+                return True
+            elif val == 'False' or val == 'false' or val == 'No' or val == 'no':
+                return False
+            else:
+                raise KeyError(err_msg)
+        except:
+            raise KeyError(err_msg)
+
     else:
         raise NotImplementedError(f"Type `{dtype}` not implemented.")

@@ -2,7 +2,7 @@ from django.shortcuts import render
 from utils.utils_require import require, CheckError
 from django.http import HttpRequest, JsonResponse
 from utils.utils_request import (BAD_METHOD, request_success, request_failed, BAD_REQUEST,
-                                 CONFLICT, SERVER_ERROR, NOT_FOUND, UNAUTHORIZED)
+                                 CONFLICT, SERVER_ERROR, NOT_FOUND, UNAUTHORIZED, return_field)
 from utils.utils_jwt import generate_jwt_token, verify_a_user
 import json
 import re
@@ -142,5 +142,92 @@ def update_or_delete(req: HttpRequest, user_id):
 
         else:
             return NOT_FOUND("Invalid user id")  # 404
+    else:
+        return BAD_METHOD
+
+
+@CheckError
+def friend_management(req: HttpRequest, user_id):
+    if req.method == "GET" or req.method == "PUT":
+        if User.objects.filter(user_id=user_id).exists():
+            if verify_a_user(user_id, req):
+                # verification passed
+                if req.method == 'GET':
+                    friends = User.objects.get(user_id=user_id).get_friends()
+                    return request_success({
+                        "friends": [
+                            return_field(User.objects.get(user_id=friend['friend']).serialize(),
+                                         ['user_id', 'user_name', 'user_email'])
+                            for friend in friends
+                        ]
+                    })
+                else:  # 'PUT'
+                    body = json.loads(req.body.decode("utf-8"))
+
+                    friend_id = require(body, 'friend_id', 'int')
+                    approve = require(body, 'approve', 'bool', is_essential=False)
+                    if approve is None:
+                        approve = True
+
+                    friend = User.objects.filter(user_id=friend_id)
+                    if friend.exists():
+                        ABFriendship = Friendship.objects.filter(user_id=user_id, friend__user_id=friend_id)
+                        BAFriendship = Friendship.objects.filter(user_id=friend_id, friend__user_id=user_id)
+                        if BAFriendship.exists():
+                            if ABFriendship.exists():
+                                if not approve:  # 删除好友
+                                    ABFriendship.delete()
+                                    BAFriendship.delete()
+                                    # todo : 利用websocket通知好友
+                            else:  # 响应好友请求
+                                if approve:  # 同意请求
+                                    Friendship.objects.create(user=User.objects.get(user_id=user_id),
+                                                              friend=User.objects.get(user_id=friend_id),
+                                                              is_approved=True).save()
+                                    BAFriendship = BAFriendship.first()
+                                    BAFriendship.is_approved = True
+                                    BAFriendship.save()
+                                    # todo : 利用websocket通知好友
+                                else:  # 拒绝请求
+                                    BAFriendship.delete()
+                                    # todo : 利用websocket通知好友
+                        else:  # 发起请求
+                            Friendship.objects.create(user=User.objects.get(user_id=user_id),
+                                                      friend=User.objects.get(user_id=friend_id),
+                                                      is_approved=False).save()  # 首次请求的APPROVE应该是False
+                            # todo : 利用websocket通知好友
+                        return request_success()
+                    else:
+                        return NOT_FOUND('Invalid friend id')
+
+            else:
+                return UNAUTHORIZED("Unauthorized")  # 401
+        else:
+            return NOT_FOUND("Invalid user id")  # 404
+    else:
+        return BAD_METHOD
+
+
+@CheckError
+def search_for_users(req: HttpRequest):
+    if req.method == 'GET':
+        search_text = req.GET.get('search_text', None)
+        if search_text is None or search_text == '':  # 搜索文字为空，返回所有用户
+            users = User.objects.all()
+            return request_success({
+                'users': [
+                    return_field(user.serialize(), ['user_id', 'user_name', 'user_email'])
+                    for user in users
+                ]
+            })
+        else:  # 根据搜索文本返回
+            users = User.objects.filter(user_name__contains=search_text) | User.objects.filter(
+                user_email__contains=search_text)
+            return request_success({
+                'users': [
+                    return_field(user.serialize(), ['user_id', 'user_name', 'user_email'])
+                    for user in users
+                ]
+            })
     else:
         return BAD_METHOD
