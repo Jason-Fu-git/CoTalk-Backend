@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "user.apps.UserConfig",
     "chat.apps.ChatConfig",
     "message.apps.MessageConfig",
+    "ws.apps.WsConfig"
 ]
 
 MIDDLEWARE = [
