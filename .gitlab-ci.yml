@@ -21,6 +21,8 @@ unit-test:
   stage: test
   before_script:
     - pip install -r requirements.txt
+    - apt-get update && apt-get install -y redis-server
+    - redis-server --port 6379 --bind 127.0.0.1 &
   script:
     - python manage.py makemigrations user
     - python manage.py makemigrations chat
