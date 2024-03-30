@@ -4,6 +4,9 @@ python3 manage.py makemigrations message
 python3 manage.py makemigrations chat
 python3 manage.py migrate
 
+# start a redis server
+redis-server --port 6379 --bind 127.0.0.1 &
+
 # Run with uWSGI
 uwsgi --module=CoTalkBackend.wsgi:application \
     --env DJANGO_SETTINGS_MODULE=CoTalkBackend.settings \
