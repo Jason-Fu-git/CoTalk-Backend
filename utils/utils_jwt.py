@@ -85,7 +85,7 @@ def check_jwt_token(token: str) -> Optional[dict]:
     return payload["data"]
 
 
-def verify_a_user(user_id: str, req, token=None) -> bool:
+def verify_a_user(user_id: int | str, req, token=None) -> bool:
     """
     Verify a user by checking the JWT token.
     :param user_id: The user ID to verify.
