@@ -25,6 +25,14 @@ class User(models.Model):
     user_email = models.CharField(max_length=MAX_EMAIL_LENGTH, blank=True)
     user_icon = models.ImageField(upload_to='../assets/avatars/', blank=True)
 
+    def serialize(self):
+        return {
+            "user_id": self.user_id,
+            "user_name": self.user_name,
+            "user_email": self.user_email,
+            # "avatar": self.user_icon, # todo: handle avatar
+        }
+
     def get_memberships(self) -> models.QuerySet:
         return self.user_membership.filter(is_approved=True)
 

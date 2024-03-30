@@ -7,7 +7,6 @@ import base64
 from typing import Optional
 from django.http import HttpRequest
 
-
 # c.f. https://thuse-course.github.io/course-index/basic/jwt/#jwt
 # !Important! Change this to your own salt, better randomly generated!"
 
@@ -47,7 +46,6 @@ def generate_jwt_token(user_id):
         "exp": int(time.time()) + EXPIRE_IN_SECONDS,
         "data": {
             "user_id": user_id
-            # And more data for your own usage
         }
     }
     payload_str = json.dumps(payload, separators=(",", ":"))
@@ -87,11 +85,20 @@ def check_jwt_token(token: str) -> Optional[dict]:
     return payload["data"]
 
 
-def verify_a_user(user_id: str, req: HttpRequest) -> bool:
+def verify_a_user(user_id, req, token=None) -> bool:
+    """
+    Verify a user by checking the JWT token.
+    :param user_id: The user ID to verify.
+    :param req: The HTTP request.
+    :param token: The JWT token to verify. If not provided, it will be retrieved from the request headers.
+    """
     # check jwt token
-    jwt_token = req.headers.get("Authorization")
-    if jwt_token is None:
-        raise KeyError("Missing Authorization header")
+    if token is None:
+        jwt_token = req.headers.get("Authorization")
+        if jwt_token is None:
+            raise KeyError("Missing Authorization header")
+    else:
+        jwt_token = token
 
     # get jwt data
     jwt_data = check_jwt_token(jwt_token)
@@ -99,7 +106,8 @@ def verify_a_user(user_id: str, req: HttpRequest) -> bool:
     if jwt_data is None:
         raise ValueError("Unauthorized")
 
-    if jwt_data["user_id"] != user_id:
+    if int(jwt_data["user_id"]) != int(user_id):
+        print(f"User ID mismatch, expected {user_id}, got {jwt_data['user_id']}")
         raise ValueError("Unauthorized")
 
     return True
