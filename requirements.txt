@@ -6,4 +6,10 @@ django-cors-headers
 
 pytest
 pytest-django
+pytest-asyncio
 coverage
+
+daphne
+redis
+channels
+channels-redis

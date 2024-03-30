@@ -1,6 +1,6 @@
 from functools import wraps
-
 from utils.utils_request import request_failed, BAD_REQUEST, SERVER_ERROR, UNAUTHORIZED
+import json
 
 # 字长限制
 MAX_MESSAGE_LENGTH = 1000
@@ -20,7 +20,9 @@ def CheckError(check_fn):
                 return BAD_REQUEST(str(e))
             if isinstance(e, ValueError) and str(e) == 'Unauthorized':
                 return UNAUTHORIZED(str(e))
-            return SERVER_ERROR(f"Server error: {e}")  # 500
+            if isinstance(e, json.decoder.JSONDecodeError):
+                return BAD_REQUEST(f"JSON decode error: {e}")
+            return SERVER_ERROR(f"Server error: {e}\n Traceback : {e.with_traceback()}")  # 500
 
     return decorated
 
@@ -74,6 +76,18 @@ def require(body, key, dtype="string", err_msg=None, is_essential=True):
         try:
             assert isinstance(val, list)
             return val
+        except:
+            raise KeyError(err_msg)
+
+    elif dtype == 'bool':
+        try:
+            val = str(val)
+            if val == 'True' or val == 'true' or val == 'Yes' or val == 'yes':
+                return True
+            elif val == 'False' or val == 'false' or val == 'No' or val == 'no':
+                return False
+            else:
+                raise KeyError(err_msg)
         except:
             raise KeyError(err_msg)
 
