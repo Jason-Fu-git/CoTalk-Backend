@@ -93,7 +93,15 @@ def update_or_delete(req: HttpRequest, user_id):
     :param req: HTTP请求
     :param user_id: url中的{user_id}
     """
-    if req.method == "DELETE" or req.method == "PUT":
+    if req.method == "GET":
+        #TODO: 可能需要改得更规范一点
+        user = User.objects.filter(user_id=user_id)
+        if user.exists():
+            return request_success(User.objects.get(user_id=user_id).serialize())
+        else:
+            return NOT_FOUND("Invalid user id")  # 404
+        
+    elif req.method == "DELETE" or req.method == "PUT":
 
         user = User.objects.filter(user_id=user_id)
         if user.exists():
