@@ -145,6 +145,26 @@ class UserTestCase(TestCase):
         response3 = self.client.put('/api/user/login')
         self.assertEqual(response3.status_code, 405)
 
+    # === get section ===
+    def test_get_success(self):
+        response = self.client.get(f'/api/user/{self.guest.user_id}')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['user_id'], self.guest.user_id)
+        self.assertEqual(response.json()['user_name'], self.guest.user_name)
+        self.assertEqual(response.json()['user_email'], self.guest.user_email)
+
+    def test_get_not_found(self):
+        response = self.client.get(f'/api/user/{self.guest.user_id + 100000}')
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_invalid_parameters(self):
+        response2 = self.client.get('/api/user/hello')
+        self.assertEqual(response2.status_code, 400)
+
+    def test_get_invalid_methods(self):
+        response1 = self.client.post('/api/user/1')
+        self.assertEqual(response1.status_code, 405)
+
     # === update section ===
     def test_update_success(self):
         login_response = self.login(user_name='admin', password='admin_pwd')
