@@ -87,17 +87,25 @@ def login(req: HttpRequest):
 
 
 @CheckError
-def update_or_delete(req: HttpRequest, user_id):
+def user_management(req: HttpRequest, user_id):
     """
-    用户更新/删除视图
+    用户详细信息获取/更新/删除视图
     :param req: HTTP请求
     :param user_id: url中的{user_id}
     """
-    if req.method == "DELETE" or req.method == "PUT":
+    if req.method == "DELETE" or req.method == "PUT" or req.method == 'GET':
+
+        try:
+            user_id = int(user_id)
+        except ValueError:
+            return BAD_REQUEST("User id must be an integer")
 
         user = User.objects.filter(user_id=user_id)
         if user.exists():
             user = user.first()
+
+            if req.method == "GET":  # 获取用户信息
+                return request_success(user.serialize())
 
             if verify_a_user(user.user_id, req):
                 # todo : 添加2FA/密码验证
