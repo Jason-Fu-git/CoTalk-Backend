@@ -4,15 +4,24 @@ import hmac
 import time
 import json
 import base64
+import random
 from typing import Optional
 from django.http import HttpRequest
 
 # c.f. https://thuse-course.github.io/course-index/basic/jwt/#jwt
 # !Important! Change this to your own salt, better randomly generated!"
 
-SALT = ("KawaiiNana" + datetime.datetime.now().strftime("%Y%m%d%H%M")).encode("utf-8")
 EXPIRE_IN_SECONDS = 60 * 60 * 24 * 1  # 1 day
 ALT_CHARS = "-_".encode("utf-8")
+
+
+def generate_salt():
+    timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M")
+    random_number = str(random.randint(10000000, 99999999))
+    str_list = list("TsinghuaSE" + random_number + random_number)
+    random.shuffle(str_list)
+    signature = "".join(str_list)
+    return hashlib.sha256(signature.encode('utf-8')).digest()
 
 
 def b64url_encode(s):
@@ -29,7 +38,7 @@ def b64url_decode(s: str, decode_to_str=True):
         return base64.b64decode(s, altchars=ALT_CHARS)
 
 
-def generate_jwt_token(user_id):
+def generate_jwt_token(SALT, user_id):
     # * header
     header = {
         "alg": "HS256",
@@ -59,7 +68,7 @@ def generate_jwt_token(user_id):
     return header_b64 + "." + payload_b64 + "." + signature_b64
 
 
-def check_jwt_token(token: str) -> Optional[dict]:
+def check_jwt_token(SALT, token: str) -> Optional[dict]:
     # * Split token
     try:
         header_b64, payload_b64, signature_b64 = token.split(".")
@@ -87,9 +96,10 @@ def check_jwt_token(token: str) -> Optional[dict]:
     return payload["data"]
 
 
-def verify_a_user(user_id, req, token=None) -> bool:
+def verify_a_user(SALT, user_id, req, token=None) -> bool:
     """
     Verify a user by checking the JWT token.
+    :param SALT : 盐
     :param user_id: The user ID to verify.
     :param req: The HTTP request.
     :param token: The JWT token to verify. If not provided, it will be retrieved from the request headers.
@@ -103,7 +113,7 @@ def verify_a_user(user_id, req, token=None) -> bool:
         jwt_token = token
 
     # get jwt data
-    jwt_data = check_jwt_token(jwt_token)
+    jwt_data = check_jwt_token(SALT, jwt_token)
 
     if jwt_data is None:
         raise ValueError("Unauthorized : Expired or wrong-formatted JWT token")

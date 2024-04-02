@@ -14,6 +14,7 @@ class User(models.Model):
     :var login_time: 登录时间
     :var user_email: 用户邮箱
     :var user_icon: 用户头像
+    :var jwt_token_salt : 该用户的 jwt token 盐 (后端持有，前端不知)
     """
     user_id = models.BigAutoField(primary_key=True)
     user_name = models.CharField(max_length=MAX_NAME_LENGTH, unique=True)
@@ -25,6 +26,8 @@ class User(models.Model):
 
     user_email = models.CharField(max_length=MAX_EMAIL_LENGTH, blank=True)
     user_icon = models.ImageField(upload_to='../assets/avatars/', blank=True)
+
+    jwt_token_salt = models.BinaryField(max_length=100, default=b'\x00' * 16)
 
     def serialize(self):
         return {

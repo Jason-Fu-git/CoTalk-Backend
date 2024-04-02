@@ -22,11 +22,12 @@ class WSConsumer(AsyncWebsocketConsumer):
             # 获取 'user_id' 的值
             user_id = int(query_params.get('user_id', [''])[0])
 
+            self.user: User = await self.get_user(user_id=user_id)
+
             exists = await self.client_exists(user_id=user_id)
 
-            # 如果登录认证通过且用户不存在
-            if verify_a_user(user_id=user_id, req=None, token=jwt_token) and not exists:
-                self.user: User = await self.get_user(user_id=user_id)
+            # 如果登录认证通过且用户之前未建立连接
+            if verify_a_user(SALT=self.user.jwt_token_salt, user_id=user_id, req=None, token=jwt_token) and not exists:
                 print(f'Channel {self.channel_name} connected, user id: {user_id}')
                 # 从数据库中提取群聊
                 chat_ids = await self.get_chat_ids(user=self.user)

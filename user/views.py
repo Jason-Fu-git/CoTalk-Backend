@@ -3,7 +3,7 @@ from utils.utils_require import require, CheckError, MAX_DESCRIPTION_LENGTH, MAX
 from django.http import HttpRequest, JsonResponse
 from utils.utils_request import (BAD_METHOD, request_success, request_failed, BAD_REQUEST,
                                  CONFLICT, SERVER_ERROR, NOT_FOUND, UNAUTHORIZED, return_field)
-from utils.utils_jwt import generate_jwt_token, verify_a_user
+from utils.utils_jwt import generate_jwt_token, verify_a_user, generate_salt
 import json
 import re
 from .models import User, Friendship
@@ -60,9 +60,12 @@ def register(req: HttpRequest):
             user.user_icon = avatar
         if description is not None and len(description) > 0:
             user.description = description
+        SALT = generate_salt()
+        user.jwt_token_salt = SALT
         user.save()
+
         return request_success({
-            "token": generate_jwt_token(user_id=user.user_id),
+            "token": generate_jwt_token(SALT=SALT, user_id=user.user_id),
             "user_id": user.user_id,
             "user_name": user.user_name,
             "user_email": user.user_email,
@@ -89,8 +92,11 @@ def login(req: HttpRequest):
     if user.exists():  # the user exists
         user = user.first()
         if user.password == password:  # login success
+            SALT = generate_salt()
+            user.jwt_token_salt = SALT
+            user.save()
             return request_success({
-                "token": generate_jwt_token(user_id=user.user_id),
+                "token": generate_jwt_token(SALT=SALT, user_id=user.user_id),
                 "user_id": user.user_id,
                 "user_name": user.user_name,
                 "user_email": user.user_email,
@@ -118,14 +124,14 @@ def user_management(req: HttpRequest, user_id):
         except ValueError:
             return BAD_REQUEST("User id must be an integer")
 
-        user = User.objects.filter(user_id=user_id)
-        if user.exists():
-            user = user.first()
+        if User.objects.filter(user_id=user_id).exists():
+            user = User.objects.get(user_id=user_id)
+            SALT = user.jwt_token_salt
 
             if req.method == "GET":  # 获取用户信息
                 return request_success(user.serialize())
 
-            if verify_a_user(user.user_id, req):
+            if verify_a_user(SALT=SALT, user_id=user.user_id, req=req):
                 # todo : 添加2FA/密码验证
                 # passed all security check, update user
                 if req.method == "PUT":
@@ -190,7 +196,9 @@ def friend_management(req: HttpRequest, user_id):
             return BAD_REQUEST("User id must be an integer")
 
         if User.objects.filter(user_id=user_id).exists():
-            if verify_a_user(user_id, req):
+            user = User.objects.get(user_id=user_id)
+            SALT = user.jwt_token_salt
+            if verify_a_user(SALT=SALT, user_id=user.user_id, req=req):
                 # verification passed
                 if req.method == 'GET':
                     friends = User.objects.get(user_id=user_id).get_friends()
