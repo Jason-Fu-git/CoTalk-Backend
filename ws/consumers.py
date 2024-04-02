@@ -30,12 +30,13 @@ class WSConsumer(AsyncWebsocketConsumer):
                 print(f'Channel {self.channel_name} connected, user id: {user_id}')
                 # 从数据库中提取群聊
                 chat_ids = await self.get_chat_ids(user=self.user)
-                # 加入群组
-                for chat_id in chat_ids:
-                    await self.channel_layer.group_add(
-                        f'chat_{chat_id}',
-                        self.channel_name)
-                await self.accept()
+                if chat_ids is not None:
+                    # 加入群组
+                    for chat_id in chat_ids:
+                        await self.channel_layer.group_add(
+                            f'chat_{chat_id}',
+                            self.channel_name)
+                    await self.accept()
                 await self.create_client(user_id=user_id)
             else:
                 print('Authentication failed or user already connected')
@@ -50,10 +51,11 @@ class WSConsumer(AsyncWebsocketConsumer):
             # 从数据库中提取群聊
             chat_ids = await self.get_chat_ids(user=self.user)
             # 退出群组
-            for chat_id in chat_ids:
-                await self.channel_layer.group_discard(
-                    f'chat_{chat_id}',
-                    self.channel_name)
+            if chat_ids is not None:
+                for chat_id in chat_ids:
+                    await self.channel_layer.group_discard(
+                        f'chat_{chat_id}',
+                        self.channel_name)
             await self.delete_client()
             print(f'Channel {self.channel_name} disconnected, user_id:{self.user.user_id}')
         except Exception as e:
@@ -235,7 +237,11 @@ class WSConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_chat_ids(self, user):
-        return [item['chat'] for item in self.user.get_chats()]
+        chats = self.user.get_chats()
+        if len(chats) == 0:
+            return None
+        else:
+            return [item['chat'] for item in chats]
 
     @database_sync_to_async
     def create_msg(self, chat_id, msg_text, msg_type):

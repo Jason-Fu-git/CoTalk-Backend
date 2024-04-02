@@ -6,6 +6,7 @@ import json
 MAX_MESSAGE_LENGTH = 1000
 MAX_NAME_LENGTH = 50
 MAX_EMAIL_LENGTH = 100
+MAX_DESCRIPTION_LENGTH = 100
 
 
 # A decorator function for error processing

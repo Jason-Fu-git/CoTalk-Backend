@@ -1,7 +1,7 @@
 from django.db import models
 
 from utils.utils_time import get_timestamp
-from utils.utils_require import MAX_NAME_LENGTH, MAX_EMAIL_LENGTH
+from utils.utils_require import MAX_NAME_LENGTH, MAX_EMAIL_LENGTH, MAX_DESCRIPTION_LENGTH
 
 
 class User(models.Model):
@@ -18,6 +18,7 @@ class User(models.Model):
     user_id = models.BigAutoField(primary_key=True)
     user_name = models.CharField(max_length=MAX_NAME_LENGTH, unique=True)
     password = models.CharField(max_length=MAX_NAME_LENGTH)
+    description = models.TextField(max_length=MAX_DESCRIPTION_LENGTH, default="这个人很懒，什么都没留下")
 
     register_time = models.FloatField(default=get_timestamp)
     login_time = models.FloatField(default=get_timestamp)
@@ -30,6 +31,8 @@ class User(models.Model):
             "user_id": self.user_id,
             "user_name": self.user_name,
             "user_email": self.user_email,
+            "description": self.description,
+            "register_time": self.register_time,
             # "avatar": self.user_icon, # todo: handle avatar
         }
 
