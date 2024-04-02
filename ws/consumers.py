@@ -36,7 +36,7 @@ class WSConsumer(AsyncWebsocketConsumer):
                         await self.channel_layer.group_add(
                             f'chat_{chat_id}',
                             self.channel_name)
-                    await self.accept()
+                await self.accept()
                 await self.create_client(user_id=user_id)
             else:
                 print('Authentication failed or user already connected')
@@ -80,12 +80,6 @@ class WSConsumer(AsyncWebsocketConsumer):
                     msg_text = require(text_data_json, 'msg_text', 'string')
                     await self.chat_message_received_from_frontend(chat_id, msg_text, msg_type)
 
-            # 好友请求
-            elif _type == 'user.friend.request':
-                friend_id = require(text_data_json, 'friend_id', 'int')
-                is_approved = require(text_data_json, 'is_approved', 'bool')
-                await self.friend_request_received_from_frontend(friend_id, is_approved)
-
         except Exception as e:
             if _type == '':
                 await self.send(text_data=json.dumps({
@@ -108,12 +102,13 @@ class WSConsumer(AsyncWebsocketConsumer):
         """
         print(f'Channel {self.user.user_id} received:', event)
         friend_id = require(event, 'user_id', 'int')
+        status = require(event, 'status', 'string')
         is_approved = require(event, 'is_approved', 'bool')
         # 向前端发送消息
         await self.send(text_data=json.dumps(
             {
                 'type': 'user.friend.request',
-                'status': 'received',
+                'status': status,
                 'user_id': friend_id,
                 'is_approved': is_approved
             })
@@ -175,42 +170,6 @@ class WSConsumer(AsyncWebsocketConsumer):
             'msg_id': msg.msg_id,
             'create_time': msg.create_time,
         }))
-
-    async def friend_request_received_from_frontend(self, friend_id, is_approved):
-        """
-        处理从好友请求接收的消息
-        :param friend_id: 好友ID
-        :param is_approved: 是否同意
-        """
-
-        exists = await self.client_exists(user_id=friend_id)
-
-        if exists:
-            # 通知好友
-            friend_client = await self.get_client(user_id=friend_id)
-            await self.channel_layer.send(
-                friend_client.channel_name,
-                {
-                    'type': 'user.friend.request',
-                    'status': 'sent',
-                    'user_id': self.user.user_id,
-                    'is_approved': is_approved
-                }
-            )
-
-            # 将成功消息通知给前端
-            await self.send(text_data=json.dumps({
-                'type': 'user.friend.request',
-                'status': 'success',
-            }))
-
-        else:
-            print('friend not logged in', f'user_{friend_id}')
-            await self.send(text_data=json.dumps({
-                'type': 'user.friend.request',
-                'status': 'error',
-                'info': 'Friend not logged in'
-            }))
 
     # === 前端事件处理 ===
 

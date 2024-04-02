@@ -100,46 +100,115 @@ class WSTests(TestCase):
         admin_response = await database_sync_to_async(self.register)(user_name='test_friend_request_success_admin',
                                                                      password='admin_pwd')
         self.assertEqual(admin_response.status_code, 200)
-        token = admin_response.json()['token']
+        admin_token = admin_response.json()['token']
         admin_id = admin_response.json()['user_id']
         admin_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                   f'/ws/?Authorization={token}&user_id={admin_id}')
+                                                   f'/ws/?Authorization={admin_token}&user_id={admin_id}')
         connected, _ = await admin_communicator.connect()
         self.assertTrue(connected)
 
         guest_response = await database_sync_to_async(self.register)(user_name='test_friend_request_success_guest',
                                                                      password='guest_pwd')
         self.assertEqual(guest_response.status_code, 200)
-        token = guest_response.json()['token']
+        guest_token = guest_response.json()['token']
         guest_id = guest_response.json()['user_id']
 
-        # send friend request to unconnected user
-        await admin_communicator.send_json_to(
-            {'type': 'user.friend.request', 'friend_id': guest_id, 'is_approved': True})
-        response = await admin_communicator.receive_json_from(timeout=5)
-        print('#1', response)
-        self.assertEqual(response['type'], 'user.friend.request')
-        self.assertEqual(response['status'], 'error')
-        self.assertEqual(response['info'], 'Friend not logged in')
-
-        # send friend request to connected user
         guest_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                   f'/ws/?Authorization={token}&user_id={guest_id}')
+                                                   f'/ws/?Authorization={guest_token}&user_id={guest_id}')
         connected, _ = await guest_communicator.connect()
         self.assertTrue(connected)
 
-        await admin_communicator.send_json_to(
-            {'type': 'user.friend.request', 'friend_id': guest_id, 'is_approved': False})
-        response = await admin_communicator.receive_json_from(timeout=5)
-        print('#2', response)
-        self.assertEqual(response['type'], 'user.friend.request')
-        self.assertEqual(response['status'], 'success')
+        # send http request
+        response = await database_sync_to_async(self.client.put)(path=f'/api/user/{admin_id}/friends',
+                                                                 data={
+                                                                     'friend_id': guest_id,
+                                                                     'approve': 'true'
+                                                                 },
+                                                                 content_type='application/json',
+                                                                 HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 200)
+
+        # guest receive message
         response = await guest_communicator.receive_json_from(timeout=5)
-        print('#3', response)
-        self.assertEqual(response['type'], 'user.friend.request')
-        self.assertEqual(response['status'], 'received')
+        self.assertEqual(response['status'], 'make request')
         self.assertEqual(response['user_id'], admin_id)
-        self.assertEqual(response['is_approved'], False)
+
+        # guest accepts
+        response = await database_sync_to_async(self.client.put)(path=f'/api/user/{guest_id}/friends',
+                                                                 data={
+                                                                     'friend_id': admin_id,
+                                                                     'approve': 'true'
+                                                                 },
+                                                                 content_type='application/json',
+                                                                 HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 200)
+
+        # admin receive message
+        response = await admin_communicator.receive_json_from(timeout=5)
+        self.assertEqual(response['status'], 'accept request')
+        self.assertEqual(response['user_id'], guest_id)
+
+        # they are friends
+        response = await database_sync_to_async(self.client.get)(path=f'/api/user/{guest_id}/friends',
+                                                                 content_type='application/json',
+                                                                 HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(len(response.json()['friends']), 1)
+
+        # guest deleted admin
+        response = await database_sync_to_async(self.client.put)(path=f'/api/user/{guest_id}/friends',
+                                                                 data={
+                                                                     'friend_id': admin_id,
+                                                                     'approve': 'false'
+                                                                 },
+                                                                 content_type='application/json',
+                                                                 HTTP_AUTHORIZATION=guest_token)
+
+        # admin receive message
+        response = await admin_communicator.receive_json_from(timeout=5)
+        self.assertEqual(response['status'], 'delete')
+        self.assertEqual(response['user_id'], guest_id)
+
+        # they are not friends
+        response = await database_sync_to_async(self.client.get)(path=f'/api/user/{guest_id}/friends',
+                                                                 content_type='application/json',
+                                                                 HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(len(response.json()['friends']), 0)
+
+        # admin tries to make friend with guest again
+        response = await database_sync_to_async(self.client.put)(path=f'/api/user/{admin_id}/friends',
+                                                                 data={
+                                                                     'friend_id': guest_id,
+                                                                     'approve': 'true'
+                                                                 },
+                                                                 content_type='application/json',
+                                                                 HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 200)
+
+        # guest receive message
+        response = await guest_communicator.receive_json_from(timeout=5)
+        self.assertEqual(response['status'], 'make request')
+        self.assertEqual(response['user_id'], admin_id)
+
+        # guest rejects
+        response = await database_sync_to_async(self.client.put)(path=f'/api/user/{guest_id}/friends',
+                                                                 data={
+                                                                     'friend_id': admin_id,
+                                                                     'approve': 'false'
+                                                                 },
+                                                                 content_type='application/json',
+                                                                 HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 200)
+
+        # admin receive message
+        response = await admin_communicator.receive_json_from(timeout=5)
+        self.assertEqual(response['status'], 'reject request')
+        self.assertEqual(response['user_id'], guest_id)
+
+        # they are not friends
+        response = await database_sync_to_async(self.client.get)(path=f'/api/user/{admin_id}/friends',
+                                                                 content_type='application/json',
+                                                                 HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(len(response.json()['friends']), 0)
 
         await guest_communicator.disconnect()
         await admin_communicator.disconnect()

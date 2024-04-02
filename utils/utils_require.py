@@ -23,7 +23,7 @@ def CheckError(check_fn):
                 return UNAUTHORIZED(str(e))
             if isinstance(e, json.decoder.JSONDecodeError):
                 return BAD_REQUEST(f"JSON decode error: {e}")
-            return SERVER_ERROR(f"Server error: {e}\n Traceback : {e.with_traceback()}")  # 500
+            return SERVER_ERROR(f"Server error: {e}\n")  # 500
 
     return decorated
 

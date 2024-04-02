@@ -7,6 +7,9 @@ from utils.utils_jwt import generate_jwt_token, verify_a_user
 import json
 import re
 from .models import User, Friendship
+from channels.layers import get_channel_layer
+from ws.models import Client
+from asgiref.sync import async_to_sync
 from chat.models import Chat
 
 
@@ -179,8 +182,8 @@ def user_management(req: HttpRequest, user_id):
 
 @CheckError
 def friend_management(req: HttpRequest, user_id):
+    print(req.headers)
     if req.method == "GET" or req.method == "PUT":
-
         try:
             user_id = int(user_id)
         except ValueError:
@@ -208,6 +211,13 @@ def friend_management(req: HttpRequest, user_id):
 
                     friend = User.objects.filter(user_id=friend_id)
                     if friend.exists():
+
+                        # 尝试获取对应websocket
+                        if Client.objects.filter(user_id=friend_id).exists():
+                            channel_name = Client.objects.get(user_id=friend_id).channel_name
+                        else:
+                            channel_name = None
+
                         ABFriendship = Friendship.objects.filter(user_id=user_id, friend__user_id=friend_id)
                         BAFriendship = Friendship.objects.filter(user_id=friend_id, friend__user_id=user_id)
                         if BAFriendship.exists():
@@ -215,7 +225,14 @@ def friend_management(req: HttpRequest, user_id):
                                 if not approve:  # 删除好友
                                     ABFriendship.delete()
                                     BAFriendship.delete()
-                                    # todo : 利用websocket通知好友
+                                    if channel_name is not None:
+                                        async_to_sync(get_channel_layer().send)(
+                                            channel_name, {
+                                                'type': 'user.friend.request',
+                                                'status': 'delete',
+                                                'user_id': user_id,
+                                                'is_approved': approve,
+                                            })
                             else:  # 响应好友请求
                                 if approve:  # 同意请求
                                     Friendship.objects.create(user=User.objects.get(user_id=user_id),
@@ -224,15 +241,36 @@ def friend_management(req: HttpRequest, user_id):
                                     BAFriendship = BAFriendship.first()
                                     BAFriendship.is_approved = True
                                     BAFriendship.save()
-                                    # todo : 利用websocket通知好友
+                                    if channel_name is not None:
+                                        async_to_sync(get_channel_layer().send)(
+                                            channel_name, {
+                                                'type': 'user.friend.request',
+                                                'status': 'accept request',
+                                                'user_id': user_id,
+                                                'is_approved': approve,
+                                            })
                                 else:  # 拒绝请求
                                     BAFriendship.delete()
-                                    # todo : 利用websocket通知好友
+                                    if channel_name is not None:
+                                        async_to_sync(get_channel_layer().send)(
+                                            channel_name, {
+                                                'type': 'user.friend.request',
+                                                'status': 'reject request',
+                                                'user_id': user_id,
+                                                'is_approved': approve,
+                                            })
                         else:  # 发起请求
                             Friendship.objects.create(user=User.objects.get(user_id=user_id),
                                                       friend=User.objects.get(user_id=friend_id),
                                                       is_approved=False).save()  # 首次请求的APPROVE应该是False
-                            # todo : 利用websocket通知好友
+                            if channel_name is not None:
+                                async_to_sync(get_channel_layer().send)(
+                                    channel_name, {
+                                        'type': 'user.friend.request',
+                                        'status': 'make request',
+                                        'user_id': user_id,
+                                        'is_approved': approve,
+                                    })
                         return request_success()
                     else:
                         return NOT_FOUND('Invalid friend id')

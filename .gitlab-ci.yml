@@ -13,8 +13,8 @@ build:
     - export BUILD_IMAGE_USERNAME=$CI_REGISTRY_USER
     - export BUILD_IMAGE_PASSWORD=$CI_REGISTRY_PASSWORD
     - deployer build
-  only:
-    - master
+#  only:
+#    - master
 
 unit-test:
   image: python:3.9
@@ -35,12 +35,12 @@ unit-test:
     - curl "http://api.secoder.net/static/sonar-scanner.tar.gz" -s -o "/tmp/sonar-$SUFFIX.tar.gz"
     - tar -xf "/tmp/sonar-$SUFFIX.tar.gz"  -C /opt
     - /opt/sonar-scanner/bin/sonar-scanner
-  only:
-    - master
+#  only:
+#    - master
 
 deploy:
   stage: deploy
   script:
     - deployer dyno replace $CI_PROJECT_NAME "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG" "$REGISTRY_USER" "$REGISTRY_PWD"
-  only:
-    - master
+#  only:
+#    - master
