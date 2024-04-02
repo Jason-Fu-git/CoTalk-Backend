@@ -45,6 +45,11 @@ class User(models.Model):
     def get_chats(self) -> models.QuerySet:
         return self.get_memberships().values('chat')
 
+    def get_notifications(self, only_unread=False, later_then=0) -> models.QuerySet:
+        if only_unread:
+            return self.receiver_notifications.filter(is_read=False).filter(timestamp__gt=later_then)
+        return self.receiver_notifications.filter(timestamp__gt=later_then)
+
     def __str__(self) -> str:
         return str(self.user_name)
 

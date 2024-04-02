@@ -99,7 +99,7 @@ def login(req: HttpRequest):
                 # "avatar": user.user_icon, # todo: handle avatar
             })
         else:
-            return UNAUTHORIZED("Wrong password")  # 401
+            return UNAUTHORIZED("Unauthorized : Wrong password")  # 401
     else:
         return NOT_FOUND("User Not Found")  # 404
 
@@ -172,7 +172,7 @@ def user_management(req: HttpRequest, user_id):
                     user.delete()
                 return request_success()
             else:
-                return UNAUTHORIZED("Unauthorized")  # 401
+                return UNAUTHORIZED("Unauthorized : Verification failed")  # 401
 
         else:
             return NOT_FOUND("Invalid user id")  # 404
@@ -276,7 +276,7 @@ def friend_management(req: HttpRequest, user_id):
                         return NOT_FOUND('Invalid friend id')
 
             else:
-                return UNAUTHORIZED("Unauthorized")  # 401
+                return UNAUTHORIZED("Unauthorized : Verification failed")  # 401
         else:
             return NOT_FOUND("Invalid user id")  # 404
     else:

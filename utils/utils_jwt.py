@@ -104,10 +104,10 @@ def verify_a_user(user_id, req, token=None) -> bool:
     jwt_data = check_jwt_token(jwt_token)
 
     if jwt_data is None:
-        raise ValueError("Unauthorized")
+        raise ValueError("Unauthorized : Empty or wrong-formatted JWT token")
 
     if int(jwt_data["user_id"]) != int(user_id):
         print(f"User ID mismatch, expected {user_id}, got {jwt_data['user_id']}")
-        raise ValueError("Unauthorized")
+        raise ValueError("Unauthorized : User ID mismatch, Unauthorized")
 
     return True
