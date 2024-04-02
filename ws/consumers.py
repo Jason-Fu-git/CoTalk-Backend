@@ -22,19 +22,21 @@ class WSConsumer(AsyncWebsocketConsumer):
             # 获取 'user_id' 的值
             user_id = int(query_params.get('user_id', [''])[0])
 
+            self.user: User = await self.get_user(user_id=user_id)
+
             exists = await self.client_exists(user_id=user_id)
 
-            # 如果登录认证通过且用户不存在
-            if verify_a_user(user_id=user_id, req=None, token=jwt_token) and not exists:
-                self.user: User = await self.get_user(user_id=user_id)
+            # 如果登录认证通过且用户之前未建立连接
+            if verify_a_user(SALT=self.user.jwt_token_salt, user_id=user_id, req=None, token=jwt_token) and not exists:
                 print(f'Channel {self.channel_name} connected, user id: {user_id}')
                 # 从数据库中提取群聊
                 chat_ids = await self.get_chat_ids(user=self.user)
-                # 加入群组
-                for chat_id in chat_ids:
-                    await self.channel_layer.group_add(
-                        f'chat_{chat_id}',
-                        self.channel_name)
+                if chat_ids is not None:
+                    # 加入群组
+                    for chat_id in chat_ids:
+                        await self.channel_layer.group_add(
+                            f'chat_{chat_id}',
+                            self.channel_name)
                 await self.accept()
                 await self.create_client(user_id=user_id)
             else:
@@ -50,10 +52,11 @@ class WSConsumer(AsyncWebsocketConsumer):
             # 从数据库中提取群聊
             chat_ids = await self.get_chat_ids(user=self.user)
             # 退出群组
-            for chat_id in chat_ids:
-                await self.channel_layer.group_discard(
-                    f'chat_{chat_id}',
-                    self.channel_name)
+            if chat_ids is not None:
+                for chat_id in chat_ids:
+                    await self.channel_layer.group_discard(
+                        f'chat_{chat_id}',
+                        self.channel_name)
             await self.delete_client()
             print(f'Channel {self.channel_name} disconnected, user_id:{self.user.user_id}')
         except Exception as e:
@@ -78,12 +81,6 @@ class WSConsumer(AsyncWebsocketConsumer):
                     msg_text = require(text_data_json, 'msg_text', 'string')
                     await self.chat_message_received_from_frontend(chat_id, msg_text, msg_type)
 
-            # 好友请求
-            elif _type == 'user.friend.request':
-                friend_id = require(text_data_json, 'friend_id', 'int')
-                is_approved = require(text_data_json, 'is_approved', 'bool')
-                await self.friend_request_received_from_frontend(friend_id, is_approved)
-
         except Exception as e:
             if _type == '':
                 await self.send(text_data=json.dumps({
@@ -106,12 +103,13 @@ class WSConsumer(AsyncWebsocketConsumer):
         """
         print(f'Channel {self.user.user_id} received:', event)
         friend_id = require(event, 'user_id', 'int')
+        status = require(event, 'status', 'string')
         is_approved = require(event, 'is_approved', 'bool')
         # 向前端发送消息
         await self.send(text_data=json.dumps(
             {
                 'type': 'user.friend.request',
-                'status': 'received',
+                'status': status,
                 'user_id': friend_id,
                 'is_approved': is_approved
             })
@@ -174,42 +172,6 @@ class WSConsumer(AsyncWebsocketConsumer):
             'create_time': msg.create_time,
         }))
 
-    async def friend_request_received_from_frontend(self, friend_id, is_approved):
-        """
-        处理从好友请求接收的消息
-        :param friend_id: 好友ID
-        :param is_approved: 是否同意
-        """
-
-        exists = await self.client_exists(user_id=friend_id)
-
-        if exists:
-            # 通知好友
-            friend_client = await self.get_client(user_id=friend_id)
-            await self.channel_layer.send(
-                friend_client.channel_name,
-                {
-                    'type': 'user.friend.request',
-                    'status': 'sent',
-                    'user_id': self.user.user_id,
-                    'is_approved': is_approved
-                }
-            )
-
-            # 将成功消息通知给前端
-            await self.send(text_data=json.dumps({
-                'type': 'user.friend.request',
-                'status': 'success',
-            }))
-
-        else:
-            print('friend not logged in', f'user_{friend_id}')
-            await self.send(text_data=json.dumps({
-                'type': 'user.friend.request',
-                'status': 'error',
-                'info': 'Friend not logged in'
-            }))
-
     # === 前端事件处理 ===
 
     # === DJANGO ORM I/O ===
@@ -235,7 +197,11 @@ class WSConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_chat_ids(self, user):
-        return [item['chat'] for item in self.user.get_chats()]
+        chats = self.user.get_chats()
+        if len(chats) == 0:
+            return None
+        else:
+            return [item['chat'] for item in chats]
 
     @database_sync_to_async
     def create_msg(self, chat_id, msg_text, msg_type):

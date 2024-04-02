@@ -6,6 +6,7 @@ import json
 MAX_MESSAGE_LENGTH = 1000
 MAX_NAME_LENGTH = 50
 MAX_EMAIL_LENGTH = 100
+MAX_DESCRIPTION_LENGTH = 100
 
 
 # A decorator function for error processing
@@ -18,11 +19,11 @@ def CheckError(check_fn):
             # Handle exception e
             if isinstance(e, KeyError) or isinstance(e, NotImplementedError):
                 return BAD_REQUEST(str(e))
-            if isinstance(e, ValueError) and str(e) == 'Unauthorized':
+            if isinstance(e, ValueError) and str(e).startswith('Unauthorized'):
                 return UNAUTHORIZED(str(e))
             if isinstance(e, json.decoder.JSONDecodeError):
                 return BAD_REQUEST(f"JSON decode error: {e}")
-            return SERVER_ERROR(f"Server error: {e}\n Traceback : {e.with_traceback()}")  # 500
+            return SERVER_ERROR(f"Server error: {e}\n")  # 500
 
     return decorated
 
@@ -55,28 +56,28 @@ def require(body, key, dtype="string", err_msg=None, is_essential=True):
         try:
             val = int(val)
             return val
-        except:
+        except Exception as e:
             raise KeyError(err_msg)
 
     elif dtype == "float":
         try:
             val = float(val)
             return val
-        except:
+        except Exception as e:
             raise KeyError(err_msg)
 
     elif dtype == "string":
         try:
             val = str(val)
             return val
-        except:
+        except Exception as e:
             raise KeyError(err_msg)
 
     elif dtype == "array":
         try:
             assert isinstance(val, list)
             return val
-        except:
+        except Exception as e:
             raise KeyError(err_msg)
 
     elif dtype == 'bool':
@@ -88,7 +89,7 @@ def require(body, key, dtype="string", err_msg=None, is_essential=True):
                 return False
             else:
                 raise KeyError(err_msg)
-        except:
+        except Exception as e:
             raise KeyError(err_msg)
 
     else:
