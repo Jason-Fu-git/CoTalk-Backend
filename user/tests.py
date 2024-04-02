@@ -10,6 +10,7 @@ class UserTestCase(TestCase):
         self.admin = User.objects.create(
             user_name='admin',
             password='admin_pwd',
+            description='Administrator',
         )
         self.admin.save()
         self.guest = User.objects.create(
@@ -21,6 +22,7 @@ class UserTestCase(TestCase):
         self.socrates = User.objects.create(
             user_name='Athens_socrates',
             password='socrates_pwd',
+            description='A great philosopher'
         )
         self.socrates.save()
         self.plato = User.objects.create(
@@ -35,7 +37,7 @@ class UserTestCase(TestCase):
         self.aristotle.save()
 
     # ! Util section
-    def register(self, user_name, password, user_email=None, user_icon=None):
+    def register(self, user_name, password, user_email=None, user_icon=None, description=None):
         body = {}
         if user_name is not None:
             body['user_name'] = user_name
@@ -48,6 +50,9 @@ class UserTestCase(TestCase):
 
         if user_icon is not None:
             body['user_icon'] = user_icon
+
+        if description is not None:
+            body['description'] = description
 
         return self.client.post('/api/user/register', data=body, content_type='application/json')
 
@@ -61,7 +66,7 @@ class UserTestCase(TestCase):
 
         return self.client.post('/api/user/login', data=body, content_type='application/json')
 
-    def update(self, user_id, token, user_name=None, password=None, user_email=None, user_icon=None):
+    def update(self, user_id, token, user_name=None, password=None, user_email=None, user_icon=None, description=None):
         body = {}
         if user_name is not None:
             body['user_name'] = user_name
@@ -75,6 +80,9 @@ class UserTestCase(TestCase):
         if user_icon is not None:
             body['user_icon'] = user_icon
 
+        if description is not None:
+            body['description'] = description
+
         return self.client.put(f'/api/user/{user_id}', data=body, content_type='application/json',
                                HTTP_AUTHORIZATION=token)
 
@@ -87,9 +95,11 @@ class UserTestCase(TestCase):
         response = self.register(user_name='test_register', password='test')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['user_name'], 'test_register')
-        response = self.register(user_name='test_register1', password='test', user_email='123@qq.com')
+        response = self.register(user_name='test_register1', password='test', user_email='123@qq.com',
+                                 description='Hello world')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['user_email'], '123@qq.com')
+        self.assertEqual(response.json()['description'], "Hello world")
 
     def test_register_fail_duplicate_user_name(self):
         self.register(user_name='test_conflict', password='test_conflict')
@@ -115,6 +125,14 @@ class UserTestCase(TestCase):
         self.assertEqual(response4.status_code, 400)
         response5 = self.register(user_name='test', password='test', user_email='123@0900', user_icon=None)
         self.assertEqual(response5.status_code, 400)
+        response6 = self.register(user_name='test', password='test', description="""
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            """)
+        self.assertEqual(response6.status_code, 400)
 
     # === login section ===
     def test_login_success(self):
@@ -170,13 +188,15 @@ class UserTestCase(TestCase):
         login_response = self.login(user_name='admin', password='admin_pwd')
         update_response = self.update(user_id=login_response.json()['user_id'],
                                       token=login_response.json()['token'],
-                                      user_name='admin1', user_icon=None)
+                                      user_name='admin1', user_icon=None, password='admin1_pwd',
+                                      user_email='123@qq.com', description='hello')
         self.assertEqual(update_response.status_code, 200)
-        login_again_response = self.login(user_name='admin1', password='admin_pwd')
+        login_again_response = self.login(user_name='admin1', password='admin1_pwd')
         self.assertEqual(login_again_response.status_code, 200)
-        self.update(user_id=login_response.json()['user_id'],
-                    token=login_response.json()['token'],
-                    user_name='admin')
+        self.assertEqual(login_again_response.json()['user_id'], login_response.json()['user_id'])
+        self.assertEqual(login_again_response.json()['user_name'], 'admin1')
+        self.assertEqual(login_again_response.json()['user_email'], '123@qq.com')
+        self.assertEqual(login_again_response.json()['description'], 'hello')
 
     def test_update_wrong_token(self):
         login_admin = self.login(user_name='admin', password='admin_pwd')
@@ -217,6 +237,20 @@ class UserTestCase(TestCase):
                                token=login_admin.json()['token'],
                                user_email='123@')
         self.assertEqual(response.status_code, 400)
+        response = self.update(user_id=login_admin.json()['user_id'],
+                               token=login_admin.json()['token'],
+                               description='')
+        self.assertEqual(response.status_code, 400)
+        response = self.update(user_id=login_admin.json()['user_id'],
+                               token=login_admin.json()['token'],
+                               description="""
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            """)
+        self.assertEqual(response.status_code, 400)
 
     # === delete section ===
     def test_delete_success(self):
@@ -242,6 +276,11 @@ class UserTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         users = response.json()['users']
         self.assertEqual(len(users), 4)
+        have_entered = False
+        for user in users:
+            if user['user_id'] == self.socrates.user_id:
+                self.assertEqual(user['description'], 'A great philosopher')
+                have_entered = True
         response = self.client.get(path='/api/user/', data={'search_text': ""}, content_type='application/json')
         self.assertEqual(response.status_code, 200)
         users = response.json()['users']
@@ -274,6 +313,13 @@ class UserTestCase(TestCase):
                                    content_type='application/json', HTTP_AUTHORIZATION=plato_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()['friends']), 2)
+        friends = response.json()['friends']
+        have_entered = False
+        for friend in friends:
+            if friend['user_id'] == self.socrates.user_id:
+                self.assertEqual(friend['description'], 'A great philosopher')
+                have_entered = True
+        self.assertTrue(have_entered)
         # plato breaks friendship with aristotle
         self.client.put(path=f'/api/user/{self.plato.user_id}/friends',
                         data={'friend_id': self.aristotle.user_id,

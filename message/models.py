@@ -34,3 +34,35 @@ class Message(models.Model):
 
     def __str__(self) -> str:
         return f"{self.msg_id}'s type is {self.msg_type}, content is {self.msg_text}"
+
+
+class Notification(models.Model):
+    """
+    通知（主要隶属关系）
+    :var receiver: 接收者
+    :var sender: 发送者
+    :var content: 通知内容
+    :var create_time: 通知创建时间
+    :var is_read: 是否已读
+    """
+    notification_id = models.BigAutoField(primary_key=True)
+
+    receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='receiver_notifications')
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sender_notifications')
+
+    content = models.CharField(max_length=MAX_MESSAGE_LENGTH)
+    create_time = models.FloatField(default=get_timestamp)
+    is_read = models.BooleanField(default=False)
+
+    def serialize(self):
+        return {
+            'notification_id': self.notification_id,
+            'receiver_id': self.receiver.user_id,
+            'sender_id': self.sender.user_id,
+            'content': self.content,
+            'create_time': self.create_time,
+            'is_read': self.is_read
+        }
+
+    def __str__(self):
+        return f"{self.notification_id}'s content is {self.content}, the receiver is {self.receiver}"
