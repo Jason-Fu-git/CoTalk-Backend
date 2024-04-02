@@ -75,11 +75,13 @@ def check_jwt_token(token: str) -> Optional[dict]:
     signature_b64_check = b64url_encode(signature_check)
 
     if signature_b64_check != signature_b64:
+        print("Signature not match")
         return None
 
     # Check expire
     payload = json.loads(payload_str)
     if payload["exp"] < time.time():
+        print("Token expired")
         return None
 
     return payload["data"]
@@ -104,7 +106,7 @@ def verify_a_user(user_id, req, token=None) -> bool:
     jwt_data = check_jwt_token(jwt_token)
 
     if jwt_data is None:
-        raise ValueError("Unauthorized : Empty or wrong-formatted JWT token")
+        raise ValueError("Unauthorized : Expired or wrong-formatted JWT token")
 
     if int(jwt_data["user_id"]) != int(user_id):
         print(f"User ID mismatch, expected {user_id}, got {jwt_data['user_id']}")

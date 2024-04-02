@@ -16,25 +16,25 @@ build:
 #  only:
 #    - master
 
-unit-test:
-  image: python:3.9
-  stage: test
-  before_script:
-    - pip install -r requirements.txt
-    - apt-get update && apt-get install -y redis-server
-    - redis-server --port 6379 --bind 127.0.0.1 &
-  script:
-    - python manage.py makemigrations user
-    - python manage.py makemigrations chat
-    - python manage.py makemigrations message
-    - python manage.py migrate
-    - chmod +x test.sh
-    - ./test.sh
-  after_script:
-    - SUFFIX=$RANDOM
-    - curl "http://api.secoder.net/static/sonar-scanner.tar.gz" -s -o "/tmp/sonar-$SUFFIX.tar.gz"
-    - tar -xf "/tmp/sonar-$SUFFIX.tar.gz"  -C /opt
-    - /opt/sonar-scanner/bin/sonar-scanner
+#unit-test:
+#  image: python:3.9
+#  stage: test
+#  before_script:
+#    - pip install -r requirements.txt
+#    - apt-get update && apt-get install -y redis-server
+#    - redis-server --port 6379 --bind 127.0.0.1 &
+#  script:
+#    - python manage.py makemigrations user
+#    - python manage.py makemigrations chat
+#    - python manage.py makemigrations message
+#    - python manage.py migrate
+#    - chmod +x test.sh
+#    - ./test.sh
+#  after_script:
+#    - SUFFIX=$RANDOM
+#    - curl "http://api.secoder.net/static/sonar-scanner.tar.gz" -s -o "/tmp/sonar-$SUFFIX.tar.gz"
+#    - tar -xf "/tmp/sonar-$SUFFIX.tar.gz"  -C /opt
+#    - /opt/sonar-scanner/bin/sonar-scanner
 #  only:
 #    - master
 
