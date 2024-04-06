@@ -18,22 +18,16 @@ class Chat(models.Model):
     create_time = models.FloatField(default=get_timestamp)
     is_private = models.BooleanField(default=True)
 
-    # def serialize(self) -> dict:
-    #     return {
-    #         "chat_id": self.chat_id,
-    #         "chat_name": self.chat_name,
-    #         "create_time": self.create_time,
-    #         "is_private": self.is_private
-    #     }
+    def serialize(self) -> dict:
+        return {
+            "chat_id": self.chat_id,
+            "chat_name": self.chat_name,
+            "create_time": self.create_time,
+            "is_private": self.is_private
+        }
 
     def get_memberships(self) -> models.QuerySet:
         return self.chat_membership.filter(is_approved=True).all()
-
-    def get_members(self) -> list[tuple]:
-        res = []
-        for membership in self.get_memberships():
-            res.append((membership.user, membership.privilege))
-        return res
 
     def get_owner(self) -> User:
         """
