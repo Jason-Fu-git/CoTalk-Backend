@@ -19,7 +19,7 @@ def create_a_chat(req: HttpRequest):
 
         user_id = require(body, 'user_id', 'int')
         chat_name = require(body, 'chat_name', 'string')
-        members = require(body, 'members', 'array')
+        members = require(body, 'members', 'array', is_essential=False)
 
         if User.objects.filter(user_id=user_id).exists():
             user = User.objects.get(user_id=user_id)
@@ -31,7 +31,7 @@ def create_a_chat(req: HttpRequest):
                 chat = Chat.objects.create(chat_name=chat_name)
                 chat.save()
                 # create a membership (Owner)
-                membership = Membership.objects.create(user=user, chat=chat, privilege='O')
+                membership = Membership.objects.create(user=user, chat=chat, privilege='O', is_approved=True)
                 membership.save()
                 # notify the members
                 if members is not None:
@@ -58,8 +58,18 @@ def chat_members(req: HttpRequest, chat_id):
         except ValueError:
             return BAD_REQUEST("Chat id must be an integer")
 
-        body = json.loads(req.body.decode('utf-8'))
-        user_id = require(body, 'user_id', 'int')
+        if req.content_type == "application/json":
+            body = json.loads(req.body.decode('utf-8'))
+            user_id = require(body, 'user_id', 'int')
+        else:  # query string
+            user_id = req.GET.get('user_id', None)
+
+        if user_id is None:
+            return BAD_REQUEST("User id is required")
+        try:
+            user_id = int(user_id)
+        except ValueError:
+            return BAD_REQUEST("User id must be an integer")
 
         if User.objects.filter(user_id=user_id).exists():
             user = User.objects.get(user_id=user_id)
@@ -112,15 +122,10 @@ def chat_members(req: HttpRequest, chat_id):
                                             # have privilege and the other user is not the owner
                                             membership.delete()
                                             if channel_name is not None:
-                                                async_to_sync(get_channel_layer().send)(
-                                                    channel_name, {
-                                                        'type': 'chat.members.request',
-                                                        'status': 'delete',
-                                                        'user_id': user_id,
-                                                        'is_approved': approve,
-                                                    })
+                                                # todo : websocket
+                                                pass
                                         else:  # no privilege
-                                            return NOT_FOUND('Unauthorized: no management privilege')
+                                            return UNAUTHORIZED('Unauthorized: no management privilege')
                                 else:
                                     if user_id == member_id:  # accept / reject
                                         if approve:  # accept invitation
@@ -136,13 +141,8 @@ def chat_members(req: HttpRequest, chat_id):
                                 Membership.objects.create(user_id=member_id, chat_id=chat_id, privilege='M',
                                                           is_approved=False)
                                 if channel_name is not None:
-                                    async_to_sync(get_channel_layer().send)(
-                                        channel_name, {
-                                            'type': 'chat.members.request',
-                                            'status': 'make request',
-                                            'user_id': user_id,
-                                            'is_approved': approve,
-                                        })
+                                    # todo : websocket
+                                    pass
                             return request_success()
                         else:
                             return NOT_FOUND('Invalid member id')  # 404
@@ -182,6 +182,9 @@ def chat_management(req: HttpRequest, chat_id):
                     if not Membership.objects.filter(user_id=member_id, chat_id=chat_id).exists():
                         return NOT_FOUND('Invalid chat id or member not in chat')
                     membership = Membership.objects.get(user_id=member_id, chat_id=chat_id)
+                    if membership.privilege == 'O':  # no one can change the owner's privilege
+                        return UNAUTHORIZED('No management privilege')
+
                     if change_to == 'member':
                         # check privilege
                         if user_privilege == 'O' or user_privilege == 'A':

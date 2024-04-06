@@ -352,9 +352,11 @@ def user_chats_management(req: HttpRequest, user_id):
                                     user=chat.get_admins().first(),
                                     chat_id=chat_id)
                                 membership_owner.privilege = 'O'
+                                membership_owner.save()
                             else:
                                 membership_owner = chat.get_memberships().first()
                                 membership_owner.privilege = 'O'
+                                membership_owner.save()
 
                         return request_success()
                     else:

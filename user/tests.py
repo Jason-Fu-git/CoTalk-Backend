@@ -1,6 +1,7 @@
 from django.test import TestCase
 from .models import User
 from utils.utils_jwt import generate_jwt_token
+from chat.models import Chat, Membership
 import json
 
 
@@ -405,3 +406,146 @@ class UserTestCase(TestCase):
                                          'approve': 'OK'},
                                    content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 400)
+
+    # === chat ===
+    def test_get_chat_list_success(self):
+        admin_response = self.login(user_name='admin', password='admin_pwd')
+        admin_token = admin_response.json()['token']
+        admin_id = admin_response.json()['user_id']
+
+        chatA = Chat.objects.create(chat_name='Admin_chat')
+        chatB = Chat.objects.create(chat_name='Empty_chat')
+        chatA.save()
+        chatB.save()
+
+        membership = Membership.objects.create(user_id=admin_id, chat=chatA, is_approved=True)
+        membership.save()
+
+        response = self.client.get(path=f"/api/user/{admin_id}/chats", data={}, content_type='application/json',
+                                   HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 200)
+        chats = response.json()['chats']
+        self.assertEqual(len(chats), 1)
+        self.assertEqual(chats[0]['chat_name'], 'Admin_chat')
+
+    def test_exit_chat_success(self):
+        admin_response = self.login(user_name='admin', password='admin_pwd')
+        admin_token = admin_response.json()['token']
+        admin_id = admin_response.json()['user_id']
+
+        guest_response = self.login(user_name='guest', password='guest_pwd')
+        guest_token = guest_response.json()['token']
+        guest_id = guest_response.json()['user_id']
+
+        chatA = Chat.objects.create(chat_name='Admin_chat', is_private=False)
+        chatA.save()
+
+        admin_membership = Membership.objects.create(user_id=admin_id, chat=chatA, privilege='O', is_approved=True)
+        admin_membership.save()
+
+        guest_membership = Membership.objects.create(user_id=guest_id, chat=chatA, privilege='M',
+                                                     is_approved=True)
+        guest_membership.save()
+
+        response = self.client.get(path=f"/api/user/{admin_id}/chats", data={}, content_type='application/json',
+                                   HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 200)
+        chats = response.json()['chats']
+        self.assertEqual(len(chats), 1)
+        self.assertEqual(chats[0]['chat_name'], 'Admin_chat')
+
+        # admin exits
+        response = self.client.delete(path=f"/api/user/{admin_id}/chats", data={"chat_id": chatA.chat_id},
+                                      content_type='application/json', HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Membership.objects.filter(user_id=admin_id).exists())
+        self.assertTrue(Membership.objects.get(user_id=guest_id).privilege == 'O')
+
+        # guest exits
+        response = self.client.delete(path=f"/api/user/{guest_id}/chats", data={"chat_id": chatA.chat_id},
+                                      content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Chat.objects.filter(chat_name='Admin_chat').exists())
+
+    def test_chat_management_bad_method(self):
+        admin_response = self.login(user_name='admin', password='admin_pwd')
+        admin_token = admin_response.json()['token']
+        admin_id = admin_response.json()['user_id']
+
+        chatA = Chat.objects.create(chat_name='Admin_chat')
+        chatB = Chat.objects.create(chat_name='Empty_chat')
+        chatA.save()
+        chatB.save()
+
+        membership = Membership.objects.create(user_id=admin_id, chat=chatA, is_approved=True)
+        membership.save()
+
+        response = self.client.put(path=f"/api/user/{admin_id}/chats", data={}, content_type='application/json',
+                                   HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 405)
+
+        response = self.client.post(path=f"/api/user/{admin_id}/chats", data={}, content_type='application/json',
+                                    HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 405)
+
+    def test_chat_management_bad_id(self):
+        admin_response = self.login(user_name='admin', password='admin_pwd')
+        admin_token = admin_response.json()['token']
+        admin_id = admin_response.json()['user_id']
+
+        chatA = Chat.objects.create(chat_name='Admin_chat')
+        chatB = Chat.objects.create(chat_name='Empty_chat')
+        chatA.save()
+        chatB.save()
+
+        membership = Membership.objects.create(user_id=admin_id, chat=chatA, is_approved=True)
+        membership.save()
+
+        response = self.client.get(path=f"/api/user/admin_id/chats", data={}, content_type='application/json',
+                                   HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.delete(path=f"/api/user/{admin_id}/chats", data={},
+                                      content_type='application/json', HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.delete(path=f"/api/user/{admin_id}/chats", data={"chat_id": "hello"},
+                                      content_type='application/json', HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 400)
+
+    def test_chat_management_unauthorized(self):
+        admin_response = self.login(user_name='admin', password='admin_pwd')
+        admin_token = admin_response.json()['token']
+        admin_id = admin_response.json()['user_id']
+
+        guest_response = self.login(user_name='guest', password='guest_pwd')
+        guest_token = guest_response.json()['token']
+        guest_id = guest_response.json()['user_id']
+
+        response = self.client.get(path=f"/api/user/{admin_id}/chats", data={}, content_type='application/json',
+                                   HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 401)
+
+    def test_chat_management_not_found(self):
+        admin_response = self.login(user_name='admin', password='admin_pwd')
+        admin_token = admin_response.json()['token']
+        admin_id = admin_response.json()['user_id']
+
+        guest_response = self.login(user_name='guest', password='guest_pwd')
+        guest_token = guest_response.json()['token']
+        guest_id = guest_response.json()['user_id']
+
+        chatA = Chat.objects.create(chat_name='Admin_chat', is_private=False)
+        chatA.save()
+
+        admin_membership = Membership.objects.create(user_id=admin_id, chat=chatA, privilege='O', is_approved=True)
+        admin_membership.save()
+
+        response = self.client.get(path=f"/api/user/{10000}/chats", data={}, content_type='application/json',
+                                   HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 404)
+
+        # guest exits
+        response = self.client.delete(path=f"/api/user/{guest_id}/chats", data={"chat_id": chatA.chat_id},
+                                      content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 404)
