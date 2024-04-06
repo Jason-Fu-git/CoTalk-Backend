@@ -1,3 +1,464 @@
 from django.test import TestCase
+from user.models import User
+from chat.models import Chat, Membership
 
-# Create your tests here.
+
+class ChatTestCase(TestCase):
+
+    def setUp(self):
+        self.socrates = User.objects.create(
+            user_name='socrates',
+            password='socrates_pwd',
+            description='A great philosopher'
+        )
+        self.socrates.save()
+        self.plato = User.objects.create(
+            user_name='plato',
+            password='plato_pwd',
+        )
+        self.plato.save()
+        self.aristotle = User.objects.create(
+            user_name='aristotle',
+            password='aristotle_pwd',
+        )
+        self.aristotle.save()
+        self.athens = Chat.objects.create(
+            chat_name='Athens',
+            is_private=False
+        )
+        self.athens.save()
+        membership1 = Membership.objects.create(user_id=self.socrates.user_id, chat_id=self.athens.chat_id
+                                                , is_approved=True, privilege='O')
+        membership1.save()
+        membership2 = Membership.objects.create(user_id=self.plato.user_id, chat_id=self.athens.chat_id,
+                                                is_approved=True, privilege='A')
+        membership2.save()
+
+    # === create chat ===
+    def test_create_chat_success(self):
+        socrates_response = self.client.post('/api/user/login',
+                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                             content_type='application/json')
+        socrates_token = socrates_response.json()['token']
+        response = self.client.post('/api/chat/', data={'user_id': self.socrates.user_id,
+                                                        'chat_name': 'Test'}
+                                    , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['chat_id'], Chat.objects.get(chat_name='Test').chat_id)
+        self.assertEqual(Chat.objects.get(chat_name='Test').get_owner().user_id, self.socrates.user_id)
+
+    def test_create_chat_conflict(self):
+        socrates_response = self.client.post('/api/user/login',
+                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                             content_type='application/json')
+        socrates_token = socrates_response.json()['token']
+        response = self.client.post('/api/chat/', data={'user_id': self.socrates.user_id,
+                                                        'chat_name': 'Athens'}
+                                    , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 409)
+
+    def test_create_chat_bad_method(self):
+        socrates_response = self.client.post('/api/user/login',
+                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                             content_type='application/json')
+        socrates_token = socrates_response.json()['token']
+        response = self.client.delete('/api/chat/', data={'user_id': self.socrates.user_id,
+                                                          'chat_name': 'Athens'}
+                                      , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 405)
+        response = self.client.get('/api/chat/', data={'user_id': self.socrates.user_id,
+                                                       'chat_name': 'Athens'}
+                                   , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 405)
+        response = self.client.put('/api/chat/', data={'user_id': self.socrates.user_id,
+                                                       'chat_name': 'Athens'}
+                                   , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 405)
+
+    def test_create_chat_bad_request(self):
+        socrates_response = self.client.post('/api/user/login',
+                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                             content_type='application/json')
+        socrates_token = socrates_response.json()['token']
+        response = self.client.post('/api/chat/', data={'user_id': "hello",
+                                                        'chat_name': 'Athens'}
+                                    , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 400)
+        response = self.client.post('/api/chat/', data={'user_id': "hello"}
+                                    , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 400)
+
+    # === chat request ===
+
+    def test_chat_request_success(self):
+        socrates_response = self.client.post('/api/user/login',
+                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                             content_type='application/json')
+        socrates_token = socrates_response.json()['token']
+
+        plato_response = self.client.post('/api/user/login',
+                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
+                                          content_type='application/json')
+        plato_token = plato_response.json()['token']
+
+        aristotle_response = self.client.post('/api/user/login',
+                                              data={'user_name': 'aristotle', 'password': 'aristotle_pwd'},
+                                              content_type='application/json')
+        aristotle_token = aristotle_response.json()['token']
+
+        # socrates sends a chat invitation to aristotle
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/members',
+                                   data={'user_id': self.socrates.user_id,
+                                         'member_id': self.aristotle.user_id,
+                                         'approve': True},
+                                   content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(self.athens.get_memberships()), 2)
+
+        # aristotle accepts
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/members',
+                                   data={'user_id': self.aristotle.user_id,
+                                         'member_id': self.aristotle.user_id,
+                                         'approve': True},
+                                   content_type='application/json', HTTP_AUTHORIZATION=aristotle_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(self.athens.get_memberships()), 3)
+
+        # plato kicked aristotle out
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/members',
+                                   data={'user_id': self.plato.user_id,
+                                         'member_id': self.aristotle.user_id,
+                                         'approve': False},
+                                   content_type='application/json', HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(self.athens.get_memberships()), 2)
+
+        # socrates re-invited aristotle
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/members',
+                                   data={'user_id': self.socrates.user_id,
+                                         'member_id': self.aristotle.user_id,
+                                         'approve': True},
+                                   content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(self.athens.get_memberships()), 2)
+
+        # however, aristotle rejected
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/members',
+                                   data={'user_id': self.aristotle.user_id,
+                                         'member_id': self.aristotle.user_id,
+                                         'approve': False},
+                                   content_type='application/json', HTTP_AUTHORIZATION=aristotle_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(self.athens.get_memberships()), 2)
+
+    def test_member_list_success(self):
+        socrates_response = self.client.post('/api/user/login',
+                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                             content_type='application/json')
+        socrates_token = socrates_response.json()['token']
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/members',
+                                   data={'user_id': self.socrates.user_id},
+                                   content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 200)
+        members = response.json()['members']
+        self.assertEqual(len(members), 2)
+
+    def test_chat_request_bad_request(self):
+        socrates_response = self.client.post('/api/user/login',
+                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                             content_type='application/json')
+        socrates_token = socrates_response.json()['token']
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/members',
+                                   data={'user_id': 'hello'},
+                                   content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 400)
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/members',
+                                   content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/members',
+                                   data={'user_id': self.socrates.user_id,
+                                         'approve': True},
+                                   content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 400)
+
+    def test_chat_request_bad_method(self):
+        socrates_response = self.client.post('/api/user/login',
+                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                             content_type='application/json')
+        socrates_token = socrates_response.json()['token']
+        response = self.client.post(f'/api/chat/{self.athens.chat_id}/members',
+                                    content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 405)
+        response = self.client.delete(f'/api/chat/{self.athens.chat_id}/members',
+                                      content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 405)
+
+    def test_chat_request_not_found(self):
+        socrates_response = self.client.post('/api/user/login',
+                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                             content_type='application/json')
+        socrates_token = socrates_response.json()['token']
+
+        plato_response = self.client.post('/api/user/login',
+                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
+                                          content_type='application/json')
+        plato_token = plato_response.json()['token']
+
+        aristotle_response = self.client.post('/api/user/login',
+                                              data={'user_name': 'aristotle', 'password': 'aristotle_pwd'},
+                                              content_type='application/json')
+        aristotle_token = aristotle_response.json()['token']
+
+        response = self.client.put(f'/api/chat/{100000}/members',
+                                   data={'user_id': self.socrates.user_id,
+                                         'member_id': self.aristotle.user_id,
+                                         'approve': True},
+                                   content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 404)
+
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/members',
+                                   data={'user_id': 10000,
+                                         'member_id': self.aristotle.user_id,
+                                         'approve': True},
+                                   content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 404)
+
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/members',
+                                   data={'user_id': self.socrates.user_id,
+                                         'member_id': 100000,
+                                         'approve': True},
+                                   content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 404)
+
+    def test_chat_request_no_privilege(self):
+        socrates_response = self.client.post('/api/user/login',
+                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                             content_type='application/json')
+        socrates_token = socrates_response.json()['token']
+
+        plato_response = self.client.post('/api/user/login',
+                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
+                                          content_type='application/json')
+        plato_token = plato_response.json()['token']
+
+        aristotle_response = self.client.post('/api/user/login',
+                                              data={'user_name': 'aristotle', 'password': 'aristotle_pwd'},
+                                              content_type='application/json')
+        aristotle_token = aristotle_response.json()['token']
+
+        Membership.objects.create(user=self.aristotle, chat=self.athens, is_approved=True, privilege='M')
+
+        # member attempts to delete admin
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/members',
+                                   data={'user_id': self.aristotle.user_id,
+                                         'member_id': self.plato.user_id,
+                                         'approve': False},
+                                   content_type='application/json', HTTP_AUTHORIZATION=aristotle_token)
+        self.assertEqual(response.status_code, 401)
+
+        # admin attempts to delete owner
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/members',
+                                   data={'user_id': self.plato.user_id,
+                                         'member_id': self.socrates.user_id,
+                                         'approve': False},
+                                   content_type='application/json', HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 401)
+
+    # === member privilege ===
+    def test_member_privilege_change_success(self):
+        socrates_response = self.client.post('/api/user/login',
+                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                             content_type='application/json')
+        socrates_token = socrates_response.json()['token']
+
+        plato_response = self.client.post('/api/user/login',
+                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
+                                          content_type='application/json')
+        plato_token = plato_response.json()['token']
+
+        # socrates attempts to change plato's privilege
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/management',
+                                   data={
+                                       'user_id': self.socrates.user_id,
+                                       'member_id': self.plato.user_id,
+                                       'change_to': 'member'
+                                   }, content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(self.athens.get_admins()), 0)
+
+        # socrates hand ownership to plato
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/management',
+                                   data={
+                                       'user_id': self.socrates.user_id,
+                                       'member_id': self.plato.user_id,
+                                       'change_to': 'owner'
+                                   }, content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.athens.get_owner().user_id, self.plato.user_id)
+        self.assertEqual(Membership.objects.get(user_id=self.socrates.user_id).privilege, 'M')
+
+    def test_chat_management_bad_method(self):
+        socrates_response = self.client.post('/api/user/login',
+                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                             content_type='application/json')
+        socrates_token = socrates_response.json()['token']
+
+        plato_response = self.client.post('/api/user/login',
+                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
+                                          content_type='application/json')
+        plato_token = plato_response.json()['token']
+
+        # socrates attempts to change plato's privilege
+        response = self.client.post(f'/api/chat/{self.athens.chat_id}/management',
+                                    data={
+                                        'user_id': self.socrates.user_id,
+                                        'member_id': self.plato.user_id,
+                                        'change_to': 'member'
+                                    }, content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 405)
+
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/management',
+                                   data={
+                                       'user_id': self.socrates.user_id,
+                                       'member_id': self.plato.user_id,
+                                       'change_to': 'member'
+                                   }, content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 405)
+
+        response = self.client.delete(f'/api/chat/{self.athens.chat_id}/management',
+                                      data={
+                                          'user_id': self.socrates.user_id,
+                                          'member_id': self.plato.user_id,
+                                          'change_to': 'member'
+                                      }, content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 405)
+
+    def test_chat_management_bad_request(self):
+        socrates_response = self.client.post('/api/user/login',
+                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                             content_type='application/json')
+        socrates_token = socrates_response.json()['token']
+
+        plato_response = self.client.post('/api/user/login',
+                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
+                                          content_type='application/json')
+        plato_token = plato_response.json()['token']
+
+        # socrates attempts to change plato's privilege
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/management',
+                                   data={
+                                       'user_id': self.socrates.user_id,
+                                       'member_id': self.plato.user_id,
+                                       'change_to': 'alien'
+                                   }, content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/management',
+                                   data={
+                                       'member_id': self.plato.user_id,
+                                       'change_to': 'member'
+                                   }, content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/management',
+                                   data={
+                                       'user_id': self.socrates.user_id,
+                                       'member_id': 'self.plato.user_id',
+                                       'change_to': 'member'
+                                   }, content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.put(f'/api/chat/self.athens.chat_id/management',
+                                   data={
+                                       'user_id': self.socrates.user_id,
+                                       'member_id': 'self.plato.user_id',
+                                       'change_to': 'member'
+                                   }, content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 400)
+
+    def test_change_privilege_not_found(self):
+        socrates_response = self.client.post('/api/user/login',
+                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                             content_type='application/json')
+        socrates_token = socrates_response.json()['token']
+
+        plato_response = self.client.post('/api/user/login',
+                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
+                                          content_type='application/json')
+        plato_token = plato_response.json()['token']
+
+        # socrates attempts to change plato's privilege
+        response = self.client.put(f'/api/chat/{239182}/management',
+                                   data={
+                                       'user_id': self.socrates.user_id,
+                                       'member_id': self.plato.user_id,
+                                       'change_to': 'member'
+                                   }, content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 404)
+
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/management',
+                                   data={
+                                       'user_id': 19289,
+                                       'member_id': self.plato.user_id,
+                                       'change_to': 'member'
+                                   }, content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 404)
+
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/management',
+                                   data={
+                                       'user_id': self.socrates.user_id,
+                                       'member_id': 10000000,
+                                       'change_to': 'member'
+                                   }, content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 404)
+
+    def test_chat_management_no_privilege(self):
+        socrates_response = self.client.post('/api/user/login',
+                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                             content_type='application/json')
+        socrates_token = socrates_response.json()['token']
+
+        plato_response = self.client.post('/api/user/login',
+                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
+                                          content_type='application/json')
+        plato_token = plato_response.json()['token']
+
+        aristotle_response = self.client.post('/api/user/login',
+                                              data={'user_name': 'aristotle', 'password': 'aristotle_pwd'},
+                                              content_type='application/json')
+        aristotle_token = aristotle_response.json()['token']
+
+        Membership.objects.create(user=self.aristotle, chat=self.athens, is_approved=True, privilege='M')
+
+        # member attempts to change admin
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/management',
+                                   data={'user_id': self.aristotle.user_id,
+                                         'member_id': self.plato.user_id,
+                                         'change_to': 'member'},
+                                   content_type='application/json', HTTP_AUTHORIZATION=aristotle_token)
+        self.assertEqual(response.status_code, 401)
+
+        # admin attempts to change owner
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/management',
+                                   data={'user_id': self.plato.user_id,
+                                         'member_id': self.socrates.user_id,
+                                         'change_to': 'member'},
+                                   content_type='application/json', HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 401)
+
+        # admin attempts to appoint new admin
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/management',
+                                   data={'user_id': self.plato.user_id,
+                                         'member_id': self.aristotle.user_id,
+                                         'change_to': 'admin'},
+                                   content_type='application/json', HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 401)
+
+        # however, owner can do that
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/management',
+                                   data={'user_id': self.socrates.user_id,
+                                         'member_id': self.aristotle.user_id,
+                                         'change_to': 'admin'},
+                                   content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 200)

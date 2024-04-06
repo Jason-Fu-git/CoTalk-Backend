@@ -1,8 +1,7 @@
-from django.shortcuts import render
 from utils.utils_require import require, CheckError, MAX_DESCRIPTION_LENGTH, MAX_EMAIL_LENGTH, MAX_NAME_LENGTH
 from django.http import HttpRequest, JsonResponse
 from utils.utils_request import (BAD_METHOD, request_success, request_failed, BAD_REQUEST,
-                                 CONFLICT, SERVER_ERROR, NOT_FOUND, UNAUTHORIZED, return_field)
+                                 CONFLICT, SERVER_ERROR, NOT_FOUND, UNAUTHORIZED, PRECONDITION_FAILED, return_field)
 from utils.utils_jwt import generate_jwt_token, verify_a_user, generate_salt
 import json
 import re
@@ -10,7 +9,7 @@ from .models import User, Friendship
 from channels.layers import get_channel_layer
 from ws.models import Client
 from asgiref.sync import async_to_sync
-from chat.models import Chat
+from chat.models import Chat, Membership
 
 
 @CheckError
@@ -309,34 +308,62 @@ def search_for_users(req: HttpRequest):
     else:
         return BAD_METHOD
 
-# @CheckError
-# def user_chats_management(req: HttpRequest, user_id):
-#     if req.method == 'GET' or req.method == 'DELETE':
-#
-#         try:
-#             user_id = int(user_id)
-#         except ValueError:
-#             return BAD_REQUEST("User id must be an integer")
-#
-#         if User.objects.filter(user_id=user_id).exists():
-#             if verify_a_user(user_id, req):
-#                 # verification passed
-#                 user = User.objects.get(user_id=user_id)
-#                 if req.method == 'GET':  # 获取聊天列表
-#                     chats = user.get_chats()
-#                     if len(chats) == 0:
-#                         return request_success({'chats': []})
-#                     else:
-#                         return request_success({
-#                             'chats': [
-#                                 return_field(Chat.objects.get(chat_id=chat['chat']).serialize(),
-#                                              ['chat_id', 'chat_name', 'is_private'])
-#                                 for chat in chats]
-#                         })
-#
-#             else:
-#                 return UNAUTHORIZED("Unauthorized")  # 401
-#         else:
-#             return NOT_FOUND("Invalid user id")  # 404
-#     else:
-#         return BAD_METHOD
+
+@CheckError
+def user_chats_management(req: HttpRequest, user_id):
+    if req.method == 'GET' or req.method == 'DELETE':
+
+        try:
+            user_id = int(user_id)
+        except ValueError:
+            return BAD_REQUEST("User id must be an integer")
+
+        if User.objects.filter(user_id=user_id).exists():
+            user = User.objects.get(user_id=user_id)
+            if verify_a_user(SALT=user.jwt_token_salt, user_id=user_id, req=req):
+                # verification passed
+                if req.method == 'GET':  # 获取聊天列表
+                    chats = user.get_chats()
+                    if len(chats) == 0:
+                        return request_success({'chats': []})
+                    else:
+                        return request_success({
+                            'chats': [
+                                return_field(Chat.objects.get(chat_id=chat['chat']).serialize(),
+                                             ['chat_id', 'chat_name', 'create_time', 'is_private'])
+                                for chat in chats]
+                        })
+                else:  # delete
+                    body = json.loads(req.body.decode('utf-8'))
+                    chat_id = require(body, 'chat_id', "int")
+                    if Membership.objects.filter(user_id=user_id, chat_id=chat_id).exists():
+                        membership = Membership.objects.get(user_id=user_id, chat_id=chat_id)
+                        if membership.chat.is_private:
+                            return PRECONDITION_FAILED("Cannot delete private chat")
+
+                        is_owner = membership.privilege == 'O'
+                        membership.delete()
+                        chat = Chat.objects.get(chat_id=chat_id)
+                        if len(chat.get_memberships()) == 0:  # no people left, delete the chat
+                            chat.delete()
+                        elif is_owner:  # owner exits, handover owner privilege
+                            if chat.get_admins().exists():
+                                membership_owner = Membership.objects.get(
+                                    user=chat.get_admins().first(),
+                                    chat_id=chat_id)
+                                membership_owner.privilege = 'O'
+                                membership_owner.save()
+                            else:
+                                membership_owner = chat.get_memberships().first()
+                                membership_owner.privilege = 'O'
+                                membership_owner.save()
+
+                        return request_success()
+                    else:
+                        return NOT_FOUND("Invalid chat id or user not in chat")
+            else:
+                return UNAUTHORIZED("Unauthorized")  # 401
+        else:
+            return NOT_FOUND("Invalid user id")  # 404
+    else:
+        return BAD_METHOD
