@@ -27,7 +27,7 @@ class WSConsumer(AsyncWebsocketConsumer):
             exists = await self.client_exists(user_id=user_id)
 
             # 如果登录认证通过且用户之前未建立连接
-            if verify_a_user(SALT=self.user.jwt_token_salt, user_id=user_id, req=None, token=jwt_token) and not exists:
+            if verify_a_user(salt=self.user.jwt_token_salt, user_id=user_id, req=None, token=jwt_token) and not exists:
                 print(f'Channel {self.channel_name} connected, user id: {user_id}')
                 # 从数据库中提取群聊
                 chat_ids = await self.get_chat_ids(user=self.user)
