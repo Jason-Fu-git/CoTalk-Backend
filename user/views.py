@@ -308,6 +308,32 @@ def search_for_users(req: HttpRequest):
     else:
         return BAD_METHOD
 
+@CheckError
+def all_users(req: HttpRequest):
+    if req.method == 'GET':
+        users = User.objects.all()
+        return request_success({
+            'users': [
+                return_field(user.serialize(), ['user_id', 'user_name', 'user_email'])
+                for user in users
+            ]
+        })
+    else:
+        return BAD_METHOD
+
+@CheckError
+def search(req: HttpRequest, search_text):
+    if req.method == 'GET':
+        users = User.objects.filter(user_name__contains=search_text) | User.objects.filter(
+            user_email__contains=search_text)
+        return request_success({
+            'users': [
+                return_field(user.serialize(), ['user_id', 'user_name', 'user_email'])
+                for user in users
+            ]
+        })
+    else:
+        return BAD_METHOD
 
 @CheckError
 def user_chats_management(req: HttpRequest, user_id):
