@@ -18,7 +18,7 @@ ALT_CHARS = "-_".encode("utf-8")
 def generate_salt():
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M")
     random_number = str(random.randint(10000000, 99999999))
-    str_list = list("TsinghuaSE" + random_number + random_number)
+    str_list = list("TsinghuaSE" + timestamp + random_number)
     random.shuffle(str_list)
     signature = "".join(str_list)
     return hashlib.sha256(signature.encode('utf-8')).digest()
@@ -38,7 +38,7 @@ def b64url_decode(s: str, decode_to_str=True):
         return base64.b64decode(s, altchars=ALT_CHARS)
 
 
-def generate_jwt_token(SALT, user_id):
+def generate_jwt_token(salt, user_id):
     # * header
     header = {
         "alg": "HS256",
@@ -62,13 +62,13 @@ def generate_jwt_token(SALT, user_id):
 
     # * signature
     signature_raw = header_b64 + "." + payload_b64
-    signature = hmac.new(SALT, signature_raw.encode("utf-8"), digestmod=hashlib.sha256).digest()
+    signature = hmac.new(salt, signature_raw.encode("utf-8"), digestmod=hashlib.sha256).digest()
     signature_b64 = b64url_encode(signature)
 
     return header_b64 + "." + payload_b64 + "." + signature_b64
 
 
-def check_jwt_token(SALT, token: str) -> Optional[dict]:
+def check_jwt_token(salt, token: str) -> Optional[dict]:
     # * Split token
     try:
         header_b64, payload_b64, signature_b64 = token.split(".")
@@ -80,7 +80,7 @@ def check_jwt_token(SALT, token: str) -> Optional[dict]:
 
     # * Check signature
     signature_str_check = header_b64 + "." + payload_b64
-    signature_check = hmac.new(SALT, signature_str_check.encode("utf-8"), digestmod=hashlib.sha256).digest()
+    signature_check = hmac.new(salt, signature_str_check.encode("utf-8"), digestmod=hashlib.sha256).digest()
     signature_b64_check = b64url_encode(signature_check)
 
     if signature_b64_check != signature_b64:
@@ -96,10 +96,10 @@ def check_jwt_token(SALT, token: str) -> Optional[dict]:
     return payload["data"]
 
 
-def verify_a_user(SALT, user_id, req, token=None) -> bool:
+def verify_a_user(salt, user_id, req, token=None) -> bool:
     """
     Verify a user by checking the JWT token.
-    :param SALT : 盐
+    :param salt : 盐
     :param user_id: The user ID to verify.
     :param req: The HTTP request.
     :param token: The JWT token to verify. If not provided, it will be retrieved from the request headers.
@@ -113,7 +113,7 @@ def verify_a_user(SALT, user_id, req, token=None) -> bool:
         jwt_token = token
 
     # get jwt data
-    jwt_data = check_jwt_token(SALT, jwt_token)
+    jwt_data = check_jwt_token(salt, jwt_token)
 
     if jwt_data is None:
         raise ValueError("Unauthorized : Expired or wrong-formatted JWT token")
