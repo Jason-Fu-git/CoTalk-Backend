@@ -64,7 +64,7 @@ def register(req: HttpRequest):
         user.save()
 
         return request_success({
-            "token": generate_jwt_token(SALT=SALT, user_id=user.user_id),
+            "token": generate_jwt_token(salt=SALT, user_id=user.user_id),
             "user_id": user.user_id,
             "user_name": user.user_name,
             "user_email": user.user_email,
@@ -95,7 +95,7 @@ def login(req: HttpRequest):
             user.jwt_token_salt = SALT
             user.save()
             return request_success({
-                "token": generate_jwt_token(SALT=SALT, user_id=user.user_id),
+                "token": generate_jwt_token(salt=SALT, user_id=user.user_id),
                 "user_id": user.user_id,
                 "user_name": user.user_name,
                 "user_email": user.user_email,
@@ -130,7 +130,7 @@ def user_management(req: HttpRequest, user_id):
             if req.method == "GET":  # 获取用户信息
                 return request_success(user.serialize())
 
-            if verify_a_user(SALT=SALT, user_id=user.user_id, req=req):
+            if verify_a_user(salt=SALT, user_id=user.user_id, req=req):
                 # todo : 添加2FA/密码验证
                 # passed all security check, update user
                 if req.method == "PUT":
@@ -197,7 +197,7 @@ def friend_management(req: HttpRequest, user_id):
         if User.objects.filter(user_id=user_id).exists():
             user = User.objects.get(user_id=user_id)
             SALT = user.jwt_token_salt
-            if verify_a_user(SALT=SALT, user_id=user.user_id, req=req):
+            if verify_a_user(salt=SALT, user_id=user.user_id, req=req):
                 # verification passed
                 if req.method == 'GET':
                     friends = User.objects.get(user_id=user_id).get_friends()
@@ -291,14 +291,9 @@ def friend_management(req: HttpRequest, user_id):
 
 
 @CheckError
-def search_for_users(req: HttpRequest):
+def all_users(req: HttpRequest):
     if req.method == 'GET':
-        search_text = req.GET.get('search_text', None)
-        if search_text is None or search_text == '':  # 搜索文字为空，返回所有用户
-            users = User.objects.all()
-        else:  # 根据搜索文本返回
-            users = User.objects.filter(user_name__contains=search_text) | User.objects.filter(
-                user_email__contains=search_text)
+        users = User.objects.all()
         return request_success({
             'users': [
                 return_field(user.serialize(), ['user_id', 'user_name', 'user_email', 'description', 'register_time'])
@@ -308,18 +303,6 @@ def search_for_users(req: HttpRequest):
     else:
         return BAD_METHOD
 
-@CheckError
-def all_users(req: HttpRequest):
-    if req.method == 'GET':
-        users = User.objects.all()
-        return request_success({
-            'users': [
-                return_field(user.serialize(), ['user_id', 'user_name', 'user_email'])
-                for user in users
-            ]
-        })
-    else:
-        return BAD_METHOD
 
 @CheckError
 def search(req: HttpRequest, search_text):
@@ -328,12 +311,13 @@ def search(req: HttpRequest, search_text):
             user_email__contains=search_text)
         return request_success({
             'users': [
-                return_field(user.serialize(), ['user_id', 'user_name', 'user_email'])
+                return_field(user.serialize(), ['user_id', 'user_name', 'user_email', 'description', 'register_time'])
                 for user in users
             ]
         })
     else:
         return BAD_METHOD
+
 
 @CheckError
 def user_chats_management(req: HttpRequest, user_id):
@@ -346,7 +330,7 @@ def user_chats_management(req: HttpRequest, user_id):
 
         if User.objects.filter(user_id=user_id).exists():
             user = User.objects.get(user_id=user_id)
-            if verify_a_user(SALT=user.jwt_token_salt, user_id=user_id, req=req):
+            if verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req):
                 # verification passed
                 if req.method == 'GET':  # 获取聊天列表
                     chats = user.get_chats()

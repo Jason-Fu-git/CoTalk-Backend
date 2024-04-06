@@ -273,7 +273,7 @@ class UserTestCase(TestCase):
 
     # === friend section ===
     def test_search_success(self):
-        response = self.client.get(path='/api/user/', data={'search_text': "Athens"}, content_type='application/json')
+        response = self.client.get(path='/api/user/search/Athens', content_type='application/json')
         self.assertEqual(response.status_code, 200)
         users = response.json()['users']
         self.assertEqual(len(users), 4)
@@ -282,11 +282,8 @@ class UserTestCase(TestCase):
             if user['user_id'] == self.socrates.user_id:
                 self.assertEqual(user['description'], 'A great philosopher')
                 have_entered = True
-        response = self.client.get(path='/api/user/', data={'search_text': ""}, content_type='application/json')
-        self.assertEqual(response.status_code, 200)
-        users = response.json()['users']
-        self.assertEqual(len(users), 5)
-        response = self.client.get(path='/api/user/', content_type='application/json')
+        response = self.client.get(path='/api/user/search')
+        print(response.json())
         self.assertEqual(response.status_code, 200)
         users = response.json()['users']
         self.assertEqual(len(users), 5)
@@ -359,11 +356,11 @@ class UserTestCase(TestCase):
         self.assertEqual(response.status_code, 405)
         response = self.client.delete(f'/api/user/{self.guest.user_id}/friends')
         self.assertEqual(response.status_code, 405)
-        response = self.client.put(f'/api/user/')
+        response = self.client.put(f'/api/user/search')
         self.assertEqual(response.status_code, 405)
-        response = self.client.delete(f'/api/user/')
+        response = self.client.delete(f'/api/user/search')
         self.assertEqual(response.status_code, 405)
-        response = self.client.post(f'/api/user/')
+        response = self.client.post(f'/api/user/search/Ath')
         self.assertEqual(response.status_code, 405)
 
     def test_friend_unauthenticated(self):

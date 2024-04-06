@@ -23,7 +23,3 @@
     python manage.py runserver
 
 此时可以通过localhost:8000访问网页。
-
-在API中的User/Account中需要再增加如下方法：
-GET /api/user/{userid}
-用于返回该用户的个人信息

@@ -23,7 +23,7 @@ def create_a_chat(req: HttpRequest):
 
         if User.objects.filter(user_id=user_id).exists():
             user = User.objects.get(user_id=user_id)
-            if verify_a_user(SALT=user.jwt_token_salt, user_id=user_id, req=req):
+            if verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req):
                 # verification passed
                 if Chat.objects.filter(chat_name=chat_name).exists():
                     return CONFLICT("Chat name conflict")
@@ -74,7 +74,7 @@ def chat_members(req: HttpRequest, chat_id):
         if User.objects.filter(user_id=user_id).exists():
             user = User.objects.get(user_id=user_id)
             SALT = user.jwt_token_salt
-            if verify_a_user(SALT=SALT, user_id=user.user_id, req=req):
+            if verify_a_user(salt=SALT, user_id=user.user_id, req=req):
                 if Membership.objects.filter(user_id=user_id, chat_id=chat_id).exists():
                     # verification passed
                     if req.method == 'GET':
@@ -177,7 +177,7 @@ def chat_management(req: HttpRequest, chat_id):
                 return NOT_FOUND("Invalid chat id or user not in chat")
             user_privilege = Membership.objects.get(user_id=user_id, chat_id=chat_id).privilege
             SALT = user.jwt_token_salt
-            if verify_a_user(SALT=SALT, user_id=user.user_id, req=req):
+            if verify_a_user(salt=SALT, user_id=user.user_id, req=req):
                 if User.objects.filter(user_id=member_id).exists():
                     if not Membership.objects.filter(user_id=member_id, chat_id=chat_id).exists():
                         return NOT_FOUND('Invalid chat id or member not in chat')
