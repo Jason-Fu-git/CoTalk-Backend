@@ -186,7 +186,6 @@ def friend_management(req: HttpRequest, user_id):
     """
     好友管理/好友列表获取视图
     """
-    print(req.headers)
     if req.method != "GET" and req.method != "PUT":
         return BAD_METHOD  # 405
 
@@ -231,21 +230,24 @@ def friend_management(req: HttpRequest, user_id):
         else:
             channel_name = None
 
+        # 判断是哪种情况
         ABFriendship = Friendship.objects.filter(user_id=user_id, friend__user_id=friend_id)
         BAFriendship = Friendship.objects.filter(user_id=friend_id, friend__user_id=user_id)
+
+        # 通知
+        notification_dict = {}
+
         if BAFriendship.exists():
             if ABFriendship.exists():
                 if not approve:  # 删除好友
                     ABFriendship.delete()
                     BAFriendship.delete()
-                    if channel_name is not None:
-                        async_to_sync(get_channel_layer().send)(
-                            channel_name, {
-                                'type': 'user.friend.request',
-                                'status': 'delete',
-                                'user_id': user_id,
-                                'is_approved': approve,
-                            })
+                    notification_dict = {
+                        'type': 'user.friend.request',
+                        'status': 'delete',
+                        'user_id': user_id,
+                        'is_approved': approve,
+                    }
             else:  # 响应好友请求
                 if approve:  # 同意请求
                     Friendship.objects.create(user=User.objects.get(user_id=user_id),
@@ -254,36 +256,43 @@ def friend_management(req: HttpRequest, user_id):
                     BAFriendship = BAFriendship.first()
                     BAFriendship.is_approved = True
                     BAFriendship.save()
-                    if channel_name is not None:
-                        async_to_sync(get_channel_layer().send)(
-                            channel_name, {
-                                'type': 'user.friend.request',
-                                'status': 'accept request',
-                                'user_id': user_id,
-                                'is_approved': approve,
-                            })
+                    notification_dict = {
+                        'type': 'user.friend.request',
+                        'status': 'accept request',
+                        'user_id': user_id,
+                        'is_approved': approve,
+                    }
                 else:  # 拒绝请求
                     BAFriendship.delete()
-                    if channel_name is not None:
-                        async_to_sync(get_channel_layer().send)(
-                            channel_name, {
-                                'type': 'user.friend.request',
-                                'status': 'reject request',
-                                'user_id': user_id,
-                                'is_approved': approve,
-                            })
+                    notification_dict = {
+                        'type': 'user.friend.request',
+                        'status': 'reject request',
+                        'user_id': user_id,
+                        'is_approved': approve,
+                    }
         else:  # 发起请求
             Friendship.objects.create(user=User.objects.get(user_id=user_id),
                                       friend=User.objects.get(user_id=friend_id),
                                       is_approved=False).save()  # 首次请求的APPROVE应该是False
-            if channel_name is not None:
-                async_to_sync(get_channel_layer().send)(
-                    channel_name, {
-                        'type': 'user.friend.request',
-                        'status': 'make request',
-                        'user_id': user_id,
-                        'is_approved': approve,
-                    })
+            notification_dict = {
+                'type': 'user.friend.request',
+                'status': 'make request',
+                'user_id': user_id,
+                'is_approved': approve,
+            }
+
+        # 执行通知
+        if channel_name is not None:  # websocket 通知
+            async_to_sync(get_channel_layer().send)(
+                channel_name,
+                notification_dict
+            )
+        else:  # 静态 notification
+            Notification.objects.create(
+                sender_id=user_id,
+                receiver_id=friend_id,
+                content=str(notification_dict)
+            )
         return request_success()
 
 
@@ -384,4 +393,113 @@ def user_chats_management(req: HttpRequest, user_id):
             return NOT_FOUND("Invalid chat id or user not in chat")
 
 
+@CheckError
+def get_notification_list(req: HttpRequest, user_id):
+    """
+    获取通知列表
+    """
+    if req.method != 'GET':
+        return BAD_METHOD  # 405
 
+    try:
+        user_id = int(user_id)
+    except ValueError as e:
+        return BAD_REQUEST("Invalid user id : must be integer")  # 400
+
+    only_unread = require(req.GET, 'only_unread', 'bool')
+    later_than = require(req.GET, 'later_than', 'float')
+
+    if not User.objects.filter(user_id=user_id).exists():
+        return NOT_FOUND(NOT_FOUND_USER_ID)  # 404
+
+    user = User.objects.get(user_id=user_id)
+
+    if not verify_a_user(salt=user.jwt_token_salt, req=req, user_id=user_id):
+        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+
+    if only_unread:
+        notifications = Notification.objects.filter(receiver=user, is_read=False, create_time__gte=later_than)
+    else:
+        notifications = Notification.objects.filter(receiver=user, create_time__gte=later_than)
+
+    return request_success({
+        'notifications': [
+            return_field(notification.serialize(), [
+                'notification_id',
+                'sender_id',
+                'content',
+                'create_time',
+                'is_read',
+            ])
+            for notification in notifications]
+    })
+
+
+@CheckError
+def notification_detail_or_delete(req: HttpRequest, user_id, notification_id):
+    """
+    获取通知详情/删除通知
+    """
+    if req.method != 'GET' and req.method != 'DELETE':
+        return BAD_METHOD  # 405
+
+    try:
+        user_id = int(user_id)
+        notification_id = int(notification_id)
+    except ValueError as e:
+        return BAD_REQUEST("Invalid user id or notification id : must be integer")  # 400
+
+    if not User.objects.filter(user_id=user_id).exists():
+        return NOT_FOUND(NOT_FOUND_USER_ID)  # 404
+
+    if not Notification.objects.filter(notification_id=notification_id).exists():
+        return NOT_FOUND(NOT_FOUND_NOTIFICATION_ID)  # 404
+
+    user = User.objects.get(user_id=user_id)
+    notification = Notification.objects.get(notification_id=notification_id)
+
+    if not verify_a_user(salt=user.jwt_token_salt, req=req, user_id=user_id):
+        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+
+    if req.method == 'GET':
+        return request_success({
+            "notification_id": notification.notification_id,
+            "sender_id": notification.sender.user_id,
+            "content": notification.content,
+            "create_time": notification.create_time,
+            "is_read": notification.is_read
+        })
+    else:  # DELETE
+        notification.delete()
+        return request_success()
+
+
+@CheckError
+def read_notification(req: HttpRequest, user_id, notification_id):
+    """
+    Read notification
+    """
+    if req.method != 'PUT':
+        return BAD_METHOD  # 405
+
+    try:
+        user_id = int(user_id)
+        notification_id = int(notification_id)
+    except ValueError as e:
+        return BAD_REQUEST("Invalid user id or notification id : must be integer")  # 400
+
+    if not User.objects.filter(user_id=user_id).exists():
+        return NOT_FOUND(NOT_FOUND_USER_ID)  # 404
+
+    if not Notification.objects.filter(notification_id=notification_id).exists():
+        return NOT_FOUND(NOT_FOUND_NOTIFICATION_ID)  # 404
+
+    user = User.objects.get(user_id=user_id)
+    notification = Notification.objects.get(notification_id=notification_id)
+
+    if not verify_a_user(salt=user.jwt_token_salt, req=req, user_id=user_id):
+        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+
+    notification.is_read = True
+    notification.save()
+    return request_success()
