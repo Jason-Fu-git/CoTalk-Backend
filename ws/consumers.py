@@ -220,7 +220,7 @@ class WSConsumer(AsyncWebsocketConsumer):
 # 公开论坛
 class PiazzaConsumer(WebsocketConsumer):
     def connect(self):
-        self.room_group_name = "广场"
+        self.room_group_name = "piazza"
         self.user = self.scope['user']
         # 加入群组
         async_to_sync(self.channel_layer.group_add)(
