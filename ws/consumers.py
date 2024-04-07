@@ -1,12 +1,15 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
+from channels.generic.websocket import WebsocketConsumer
 from channels.db import database_sync_to_async
+from asgiref.sync import async_to_sync
 import urllib.parse
 from .models import Client
 from user.models import User
 from message.models import Message
 from utils.utils_jwt import verify_a_user
 from utils.utils_require import require
+from django.utils import timezone
 
 
 class WSConsumer(AsyncWebsocketConsumer):
@@ -212,3 +215,42 @@ class WSConsumer(AsyncWebsocketConsumer):
         return msg
 
     # === DJANGO ORM I/O ===
+
+
+#公开论坛
+class PiazzaConsumer(WebsocketConsumer):
+    def connect(self):
+        self.room_group_name="广场"
+        self.user=self.scope['user']
+        #加入群组
+        async_to_sync(self.channel_layer.group_add)(
+            self.room_group_name,
+            self.channel_name
+        )
+        self.accept()
+    
+    def disconnect(self, close_code):
+        #离开群组
+        async_to_sync(self.channel_layer.group_discard)(
+            self.room_group_name,
+            self.channel_name
+        )
+
+    def receive(self, text_data):
+        text_data_json=json.loads(text_data)
+        message=text_data_json['message']
+        now=timezone.now()
+        #将消息发到群组
+        async_to_sync(self.channel_layer.group_send)(
+            self.room_group_name,
+            {
+                'type' : 'chat_message',
+                'msg_text' : message,
+                'datetime': now.isoformat(),
+                'user': self.user.username,
+            }
+        )
+        self.send(text_data=json.dumps({'message':message}))
+    
+    def chat_message(self, event):
+        self.send(text_data=json.dumps(event))
