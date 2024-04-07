@@ -84,11 +84,11 @@ class UserTestCase(TestCase):
         if description is not None:
             body['description'] = description
 
-        return self.client.put(f'/api/user/{user_id}', data=body, content_type='application/json',
+        return self.client.put(f'/api/user/private/{user_id}', data=body, content_type='application/json',
                                HTTP_AUTHORIZATION=token)
 
     def delete(self, user_id, token):
-        return self.client.delete(f'/api/user/{user_id}', content_type='application/json', HTTP_AUTHORIZATION=token)
+        return self.client.delete(f'/api/user/private/{user_id}', content_type='application/json', HTTP_AUTHORIZATION=token)
 
     # ! Test section
     # === register section ===
@@ -166,22 +166,22 @@ class UserTestCase(TestCase):
 
     # === get section ===
     def test_get_success(self):
-        response = self.client.get(f'/api/user/{self.guest.user_id}')
+        response = self.client.get(f'/api/user/private/{self.guest.user_id}')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['user_id'], self.guest.user_id)
         self.assertEqual(response.json()['user_name'], self.guest.user_name)
         self.assertEqual(response.json()['user_email'], self.guest.user_email)
 
     def test_get_not_found(self):
-        response = self.client.get(f'/api/user/{self.guest.user_id + 100000}')
+        response = self.client.get(f'/api/user/private/{self.guest.user_id + 100000}')
         self.assertEqual(response.status_code, 404)
 
     def test_get_invalid_parameters(self):
-        response2 = self.client.get('/api/user/hello')
+        response2 = self.client.get('/api/user/private/hello')
         self.assertEqual(response2.status_code, 400)
 
     def test_get_invalid_methods(self):
-        response1 = self.client.post('/api/user/1')
+        response1 = self.client.post('/api/user/private/1')
         self.assertEqual(response1.status_code, 405)
 
     # === update section ===
@@ -293,21 +293,21 @@ class UserTestCase(TestCase):
         socrates_token = self.login(user_name='Athens_socrates', password='socrates_pwd').json()['token']
         aristotle_token = self.login(user_name='Athens_aristotle', password='aristotle_pwd').json()['token']
         # socrates makes friend with plato
-        self.client.put(path=f'/api/user/{self.socrates.user_id}/friends',
+        self.client.put(path=f'/api/user/private/{self.socrates.user_id}/friends',
                         data={'friend_id': self.plato.user_id},
                         content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
-        self.client.put(path=f'/api/user/{self.plato.user_id}/friends',
+        self.client.put(path=f'/api/user/private/{self.plato.user_id}/friends',
                         data={'friend_id': self.socrates.user_id},
                         content_type='application/json', HTTP_AUTHORIZATION=plato_token)
         # plato makes friend with aristotle
-        self.client.put(path=f'/api/user/{self.plato.user_id}/friends',
+        self.client.put(path=f'/api/user/private/{self.plato.user_id}/friends',
                         data={'friend_id': self.aristotle.user_id},
                         content_type='application/json', HTTP_AUTHORIZATION=plato_token)
-        self.client.put(path=f'/api/user/{self.aristotle.user_id}/friends',
+        self.client.put(path=f'/api/user/private/{self.aristotle.user_id}/friends',
                         data={'friend_id': self.plato.user_id},
                         content_type='application/json', HTTP_AUTHORIZATION=aristotle_token)
         # plato has two friends
-        response = self.client.get(path=f'/api/user/{self.plato.user_id}/friends',
+        response = self.client.get(path=f'/api/user/private/{self.plato.user_id}/friends',
                                    content_type='application/json', HTTP_AUTHORIZATION=plato_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()['friends']), 2)
@@ -319,42 +319,42 @@ class UserTestCase(TestCase):
                 have_entered = True
         self.assertTrue(have_entered)
         # plato breaks friendship with aristotle
-        self.client.put(path=f'/api/user/{self.plato.user_id}/friends',
+        self.client.put(path=f'/api/user/private/{self.plato.user_id}/friends',
                         data={'friend_id': self.aristotle.user_id,
                               'approve': False},
                         content_type='application/json', HTTP_AUTHORIZATION=plato_token)
         self.assertEqual(len(self.plato.get_friends()), 1)
         # aristotle tries to make friends with socrates
-        self.client.put(path=f'/api/user/{self.aristotle.user_id}/friends',
+        self.client.put(path=f'/api/user/private/{self.aristotle.user_id}/friends',
                         data={'friend_id': self.socrates.user_id},
                         content_type='application/json', HTTP_AUTHORIZATION=aristotle_token)
         self.assertEqual(len(self.aristotle.get_friends()), 0)
         # however, socrates disapproves
-        self.client.put(path=f'/api/user/{self.socrates.user_id}/friends',
+        self.client.put(path=f'/api/user/private/{self.socrates.user_id}/friends',
                         data={'friend_id': self.aristotle.user_id,
                               'approve': False},
                         content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
         self.assertEqual(len(self.aristotle.get_friends()), 0)
         self.assertEqual(len(self.socrates.get_friends()), 1)
         # test the corner case
-        self.client.put(path=f'/api/user/{self.plato.user_id}/friends',
+        self.client.put(path=f'/api/user/private/{self.plato.user_id}/friends',
                         data={'friend_id': self.socrates.user_id},
                         content_type='application/json', HTTP_AUTHORIZATION=plato_token)
         self.assertEqual(len(self.plato.get_friends()), 1)
-        self.client.put(path=f'/api/user/{self.aristotle.user_id}/friends',
+        self.client.put(path=f'/api/user/private/{self.aristotle.user_id}/friends',
                         data={'friend_id': self.socrates.user_id,
                               'approve': False},
                         content_type='application/json', HTTP_AUTHORIZATION=aristotle_token)
-        self.client.put(path=f'/api/user/{self.socrates.user_id}/friends',
+        self.client.put(path=f'/api/user/private/{self.socrates.user_id}/friends',
                         data={'friend_id': self.aristotle.user_id,
                               'approve': True},
                         content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
         self.assertEqual(len(self.aristotle.get_friends()), 1)
 
     def test_friend_bad_method(self):
-        response = self.client.post(f'/api/user/{self.guest.user_id}/friends')
+        response = self.client.post(f'/api/user/private/{self.guest.user_id}/friends')
         self.assertEqual(response.status_code, 405)
-        response = self.client.delete(f'/api/user/{self.guest.user_id}/friends')
+        response = self.client.delete(f'/api/user/private/{self.guest.user_id}/friends')
         self.assertEqual(response.status_code, 405)
         response = self.client.put(f'/api/user/search')
         self.assertEqual(response.status_code, 405)
@@ -364,15 +364,15 @@ class UserTestCase(TestCase):
         self.assertEqual(response.status_code, 405)
 
     def test_friend_unauthenticated(self):
-        response = self.client.put(f'/api/user/{self.guest.user_id}/friends',
+        response = self.client.put(f'/api/user/private/{self.guest.user_id}/friends',
                                    data={'friend_id': self.aristotle.user_id},
                                    content_type='application/json')
         self.assertEqual(response.status_code, 400)
-        response = self.client.get(f'/api/user/{self.guest.user_id}/friends',
+        response = self.client.get(f'/api/user/private/{self.guest.user_id}/friends',
                                    content_type='application/json')
         self.assertEqual(response.status_code, 400)
         admin_token = self.login(user_name='admin', password='admin_pwd').json()['token']
-        response = self.client.get(f'/api/user/{self.guest.user_id}/friends',
+        response = self.client.get(f'/api/user/private/{self.guest.user_id}/friends',
                                    HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 401)
 
@@ -382,7 +382,7 @@ class UserTestCase(TestCase):
         response = self.client.get(f'/api/user/10000/friends')
         self.assertEqual(response.status_code, 404)
         admin_token = self.login(user_name='admin', password='admin_pwd').json()['token']
-        response = self.client.put(f'/api/user/{self.admin.user_id}/friends',
+        response = self.client.put(f'/api/user/private/{self.admin.user_id}/friends',
                                    data={'friend_id': 10000},
                                    content_type='application/json',
                                    HTTP_AUTHORIZATION=admin_token)
@@ -391,14 +391,14 @@ class UserTestCase(TestCase):
 
     def test_friend_bad_request(self):
         guest_token = self.login(user_name='guest', password='guest_pwd').json()['token']
-        response = self.client.put(f'/api/user/{self.guest.user_id}/friends',
+        response = self.client.put(f'/api/user/private/{self.guest.user_id}/friends',
                                    HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 400)
-        response = self.client.put(path=f'/api/user/{self.guest.user_id}/friends',
+        response = self.client.put(path=f'/api/user/private/{self.guest.user_id}/friends',
                                    data={'friend_id': 'hello'},
                                    content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 400)
-        response = self.client.put(path=f'/api/user/{self.guest.user_id}/friends',
+        response = self.client.put(path=f'/api/user/private/{self.guest.user_id}/friends',
                                    data={'friend_id': self.guest.user_id,
                                          'approve': 'OK'},
                                    content_type='application/json', HTTP_AUTHORIZATION=guest_token)
@@ -418,7 +418,7 @@ class UserTestCase(TestCase):
         membership = Membership.objects.create(user_id=admin_id, chat=chatA, is_approved=True)
         membership.save()
 
-        response = self.client.get(path=f"/api/user/{admin_id}/chats", data={}, content_type='application/json',
+        response = self.client.get(path=f"/api/user/private/{admin_id}/chats", data={}, content_type='application/json',
                                    HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 200)
         chats = response.json()['chats']
@@ -444,7 +444,7 @@ class UserTestCase(TestCase):
                                                      is_approved=True)
         guest_membership.save()
 
-        response = self.client.get(path=f"/api/user/{admin_id}/chats", data={}, content_type='application/json',
+        response = self.client.get(path=f"/api/user/private/{admin_id}/chats", data={}, content_type='application/json',
                                    HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 200)
         chats = response.json()['chats']
@@ -452,14 +452,14 @@ class UserTestCase(TestCase):
         self.assertEqual(chats[0]['chat_name'], 'Admin_chat')
 
         # admin exits
-        response = self.client.delete(path=f"/api/user/{admin_id}/chats", data={"chat_id": chatA.chat_id},
+        response = self.client.delete(path=f"/api/user/private/{admin_id}/chats", data={"chat_id": chatA.chat_id},
                                       content_type='application/json', HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Membership.objects.filter(user_id=admin_id).exists())
         self.assertTrue(Membership.objects.get(user_id=guest_id).privilege == 'O')
 
         # guest exits
-        response = self.client.delete(path=f"/api/user/{guest_id}/chats", data={"chat_id": chatA.chat_id},
+        response = self.client.delete(path=f"/api/user/private/{guest_id}/chats", data={"chat_id": chatA.chat_id},
                                       content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Chat.objects.filter(chat_name='Admin_chat').exists())
@@ -477,11 +477,11 @@ class UserTestCase(TestCase):
         membership = Membership.objects.create(user_id=admin_id, chat=chatA, is_approved=True)
         membership.save()
 
-        response = self.client.put(path=f"/api/user/{admin_id}/chats", data={}, content_type='application/json',
+        response = self.client.put(path=f"/api/user/private/{admin_id}/chats", data={}, content_type='application/json',
                                    HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 405)
 
-        response = self.client.post(path=f"/api/user/{admin_id}/chats", data={}, content_type='application/json',
+        response = self.client.post(path=f"/api/user/private/{admin_id}/chats", data={}, content_type='application/json',
                                     HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 405)
 
@@ -498,15 +498,15 @@ class UserTestCase(TestCase):
         membership = Membership.objects.create(user_id=admin_id, chat=chatA, is_approved=True)
         membership.save()
 
-        response = self.client.get(path=f"/api/user/admin_id/chats", data={}, content_type='application/json',
+        response = self.client.get(path=f"/api/user/private/admin_id/chats", data={}, content_type='application/json',
                                    HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 400)
 
-        response = self.client.delete(path=f"/api/user/{admin_id}/chats", data={},
+        response = self.client.delete(path=f"/api/user/private/{admin_id}/chats", data={},
                                       content_type='application/json', HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 400)
 
-        response = self.client.delete(path=f"/api/user/{admin_id}/chats", data={"chat_id": "hello"},
+        response = self.client.delete(path=f"/api/user/private/{admin_id}/chats", data={"chat_id": "hello"},
                                       content_type='application/json', HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 400)
 
@@ -519,7 +519,7 @@ class UserTestCase(TestCase):
         guest_token = guest_response.json()['token']
         guest_id = guest_response.json()['user_id']
 
-        response = self.client.get(path=f"/api/user/{admin_id}/chats", data={}, content_type='application/json',
+        response = self.client.get(path=f"/api/user/private/{admin_id}/chats", data={}, content_type='application/json',
                                    HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 401)
 
@@ -538,11 +538,11 @@ class UserTestCase(TestCase):
         admin_membership = Membership.objects.create(user_id=admin_id, chat=chatA, privilege='O', is_approved=True)
         admin_membership.save()
 
-        response = self.client.get(path=f"/api/user/{10000}/chats", data={}, content_type='application/json',
+        response = self.client.get(path=f"/api/user/private/{10000}/chats", data={}, content_type='application/json',
                                    HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 404)
 
         # guest exits
-        response = self.client.delete(path=f"/api/user/{guest_id}/chats", data={"chat_id": chatA.chat_id},
+        response = self.client.delete(path=f"/api/user/private/{guest_id}/chats", data={"chat_id": chatA.chat_id},
                                       content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 404)

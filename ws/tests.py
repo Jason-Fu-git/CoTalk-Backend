@@ -119,7 +119,7 @@ class WSTests(TestCase):
         self.assertTrue(connected)
 
         # send http request
-        response = await database_sync_to_async(self.client.put)(path=f'/api/user/{admin_id}/friends',
+        response = await database_sync_to_async(self.client.put)(path=f'/api/user/private/{admin_id}/friends',
                                                                  data={
                                                                      'friend_id': guest_id,
                                                                      'approve': 'true'
@@ -134,7 +134,7 @@ class WSTests(TestCase):
         self.assertEqual(response['user_id'], admin_id)
 
         # guest accepts
-        response = await database_sync_to_async(self.client.put)(path=f'/api/user/{guest_id}/friends',
+        response = await database_sync_to_async(self.client.put)(path=f'/api/user/private/{guest_id}/friends',
                                                                  data={
                                                                      'friend_id': admin_id,
                                                                      'approve': 'true'
@@ -149,13 +149,13 @@ class WSTests(TestCase):
         self.assertEqual(response['user_id'], guest_id)
 
         # they are friends
-        response = await database_sync_to_async(self.client.get)(path=f'/api/user/{guest_id}/friends',
+        response = await database_sync_to_async(self.client.get)(path=f'/api/user/private/{guest_id}/friends',
                                                                  content_type='application/json',
                                                                  HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(len(response.json()['friends']), 1)
 
         # guest deleted admin
-        response = await database_sync_to_async(self.client.put)(path=f'/api/user/{guest_id}/friends',
+        response = await database_sync_to_async(self.client.put)(path=f'/api/user/private/{guest_id}/friends',
                                                                  data={
                                                                      'friend_id': admin_id,
                                                                      'approve': 'false'
@@ -169,13 +169,13 @@ class WSTests(TestCase):
         self.assertEqual(response['user_id'], guest_id)
 
         # they are not friends
-        response = await database_sync_to_async(self.client.get)(path=f'/api/user/{guest_id}/friends',
+        response = await database_sync_to_async(self.client.get)(path=f'/api/user/private/{guest_id}/friends',
                                                                  content_type='application/json',
                                                                  HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(len(response.json()['friends']), 0)
 
         # admin tries to make friend with guest again
-        response = await database_sync_to_async(self.client.put)(path=f'/api/user/{admin_id}/friends',
+        response = await database_sync_to_async(self.client.put)(path=f'/api/user/private/{admin_id}/friends',
                                                                  data={
                                                                      'friend_id': guest_id,
                                                                      'approve': 'true'
@@ -190,7 +190,7 @@ class WSTests(TestCase):
         self.assertEqual(response['user_id'], admin_id)
 
         # guest rejects
-        response = await database_sync_to_async(self.client.put)(path=f'/api/user/{guest_id}/friends',
+        response = await database_sync_to_async(self.client.put)(path=f'/api/user/private/{guest_id}/friends',
                                                                  data={
                                                                      'friend_id': admin_id,
                                                                      'approve': 'false'
@@ -205,7 +205,7 @@ class WSTests(TestCase):
         self.assertEqual(response['user_id'], guest_id)
 
         # they are not friends
-        response = await database_sync_to_async(self.client.get)(path=f'/api/user/{admin_id}/friends',
+        response = await database_sync_to_async(self.client.get)(path=f'/api/user/private/{admin_id}/friends',
                                                                  content_type='application/json',
                                                                  HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(len(response.json()['friends']), 0)
