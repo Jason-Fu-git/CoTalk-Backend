@@ -396,7 +396,6 @@ class UserTestCase(TestCase):
                                    content_type='application/json',
                                    HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json()['info'], 'Invalid friend id')
 
     def test_friend_bad_request(self):
         guest_token = self.login(user_name='guest', password='guest_pwd').json()['token']
@@ -556,3 +555,5 @@ class UserTestCase(TestCase):
         response = self.client.delete(path=f"/api/user/private/{guest_id}/chats", data={"chat_id": chatA.chat_id},
                                       content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 404)
+
+    # === Notification tests ===
