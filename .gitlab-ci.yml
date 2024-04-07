@@ -27,6 +27,7 @@ unit-test:
     - python manage.py makemigrations user
     - python manage.py makemigrations chat
     - python manage.py makemigrations message
+    - python manage.py makemigrations ws
     - python manage.py migrate
     - chmod +x test.sh
     - ./test.sh
