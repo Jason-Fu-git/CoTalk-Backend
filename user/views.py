@@ -39,10 +39,10 @@ def register(req: HttpRequest):
         return BAD_REQUEST("Password length error")
 
     if user_email is not None:
-        if not re.match(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$", user_email):
-            return BAD_REQUEST("Invalid email address")
         if len(user_email) == 0 or len(user_email) > MAX_EMAIL_LENGTH:
             return BAD_REQUEST("Email length error")
+        if not re.match(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$", user_email):
+            return BAD_REQUEST("Invalid email address")
 
     if description is not None:
         if len(description) > MAX_DESCRIPTION_LENGTH:
@@ -157,10 +157,10 @@ def user_management(req: HttpRequest, user_id):
                         user.password = password
 
                     if user_email is not None:
-                        if not re.match(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$", user_email):
-                            return BAD_REQUEST("Invalid email address")
                         if len(user_email) == 0 or len(user_email) > MAX_EMAIL_LENGTH:
                             return BAD_REQUEST("Email length error")
+                        if not re.match(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$", user_email):
+                            return BAD_REQUEST("Invalid email address")
                         user.user_email = user_email
 
                     if description is not None:
