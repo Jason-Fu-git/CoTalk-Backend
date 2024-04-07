@@ -217,40 +217,40 @@ class WSConsumer(AsyncWebsocketConsumer):
     # === DJANGO ORM I/O ===
 
 
-#公开论坛
+# 公开论坛
 class PiazzaConsumer(WebsocketConsumer):
     def connect(self):
-        self.room_group_name="广场"
-        self.user=self.scope['user']
-        #加入群组
+        self.room_group_name = "广场"
+        self.user = self.scope['user']
+        # 加入群组
         async_to_sync(self.channel_layer.group_add)(
             self.room_group_name,
             self.channel_name
         )
         self.accept()
-    
+
     def disconnect(self, close_code):
-        #离开群组
+        # 离开群组
         async_to_sync(self.channel_layer.group_discard)(
             self.room_group_name,
             self.channel_name
         )
 
     def receive(self, text_data):
-        text_data_json=json.loads(text_data)
-        message=text_data_json['message']
-        now=timezone.now()
-        #将消息发到群组
+        text_data_json = json.loads(text_data)
+        message = text_data_json['message']
+        now = timezone.now()
+        # 将消息发到群组
         async_to_sync(self.channel_layer.group_send)(
             self.room_group_name,
             {
-                'type' : 'chat_message',
-                'msg_text' : message,
+                'type': 'chat_message',
+                'msg_text': message,
                 'datetime': now.isoformat(),
                 'user': self.user.user_name,
             }
         )
-        self.send(text_data=json.dumps({'message':message}))
-    
+        self.send(text_data=json.dumps({'message': message}))
+
     def chat_message(self, event):
         self.send(text_data=json.dumps(event))
