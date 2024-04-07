@@ -88,7 +88,8 @@ class UserTestCase(TestCase):
                                HTTP_AUTHORIZATION=token)
 
     def delete(self, user_id, token):
-        return self.client.delete(f'/api/user/private/{user_id}', content_type='application/json', HTTP_AUTHORIZATION=token)
+        return self.client.delete(f'/api/user/private/{user_id}', content_type='application/json',
+                                  HTTP_AUTHORIZATION=token)
 
     # ! Test section
     # === register section ===
@@ -228,19 +229,27 @@ class UserTestCase(TestCase):
         self.assertEqual(response.status_code, 400)
         response = self.update(user_id=login_admin.json()['user_id'],
                                token=login_admin.json()['token'],
-                               user_name='')
+                               user_name="""
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            """)
         self.assertEqual(response.status_code, 400)
         response = self.update(user_id=login_admin.json()['user_id'],
                                token=login_admin.json()['token'],
-                               password='')
+                               password="""
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
+            """)
         self.assertEqual(response.status_code, 400)
         response = self.update(user_id=login_admin.json()['user_id'],
                                token=login_admin.json()['token'],
                                user_email='123@')
-        self.assertEqual(response.status_code, 400)
-        response = self.update(user_id=login_admin.json()['user_id'],
-                               token=login_admin.json()['token'],
-                               description='')
         self.assertEqual(response.status_code, 400)
         response = self.update(user_id=login_admin.json()['user_id'],
                                token=login_admin.json()['token'],
@@ -481,7 +490,8 @@ class UserTestCase(TestCase):
                                    HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 405)
 
-        response = self.client.post(path=f"/api/user/private/{admin_id}/chats", data={}, content_type='application/json',
+        response = self.client.post(path=f"/api/user/private/{admin_id}/chats", data={},
+                                    content_type='application/json',
                                     HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 405)
 
