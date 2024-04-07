@@ -23,3 +23,5 @@
     python manage.py runserver
 
 此时可以通过localhost:8000访问网页。
+
+如遇到脚本出现错误字符，请使用vim，输入命令 `:set fileformat=unix`
