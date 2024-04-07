@@ -2,6 +2,7 @@
 python3 manage.py makemigrations user
 python3 manage.py makemigrations message
 python3 manage.py makemigrations chat
+python3 manage.py makemigrations ws
 python3 manage.py migrate
 
 # start a redis server
