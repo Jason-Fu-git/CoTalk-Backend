@@ -5,6 +5,7 @@ import time
 import json
 import base64
 import random
+import secrets
 from typing import Optional
 from django.http import HttpRequest
 
@@ -17,10 +18,8 @@ ALT_CHARS = "-_".encode("utf-8")
 
 def generate_salt():
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M")
-    random_number = str(random.randint(10000000, 99999999))
-    str_list = list("TsinghuaSE" + timestamp + random_number)
-    random.shuffle(str_list)
-    signature = "".join(str_list)
+    random_string = secrets.token_urlsafe(32)
+    signature = timestamp + random_string
     return hashlib.sha256(signature.encode('utf-8')).digest()
 
 
