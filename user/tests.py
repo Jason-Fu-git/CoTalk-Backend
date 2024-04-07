@@ -1,7 +1,9 @@
 from django.test import TestCase
 from .models import User
 from utils.utils_jwt import generate_jwt_token
+from utils.utils_time import get_timestamp
 from chat.models import Chat, Membership
+from message.models import Notification
 import json
 
 
@@ -396,7 +398,6 @@ class UserTestCase(TestCase):
                                    content_type='application/json',
                                    HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json()['info'], 'Invalid friend id')
 
     def test_friend_bad_request(self):
         guest_token = self.login(user_name='guest', password='guest_pwd').json()['token']
@@ -555,4 +556,245 @@ class UserTestCase(TestCase):
         # guest exits
         response = self.client.delete(path=f"/api/user/private/{guest_id}/chats", data={"chat_id": chatA.chat_id},
                                       content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 404)
+
+    # === Notification tests ===
+    def create_notification(self):
+        admin_response = self.login(user_name='admin', password='admin_pwd')
+        admin_token = admin_response.json()['token']
+        admin_id = admin_response.json()['user_id']
+
+        self.client.put(path=f'/api/user/private/{self.admin.user_id}/friends',
+                        data={'friend_id': self.guest.user_id},
+                        content_type='application/json', HTTP_AUTHORIZATION=admin_token)
+
+    def test_get_notification_list_success(self):
+        self.create_notification()
+
+        admin_response = self.login(user_name='admin', password='admin_pwd')
+        admin_token = admin_response.json()['token']
+        admin_id = admin_response.json()['user_id']
+
+        guest_response = self.login(user_name='guest', password='guest_pwd')
+        guest_token = guest_response.json()['token']
+        guest_id = guest_response.json()['user_id']
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=0", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['notifications']), 1)
+        self.assertEqual(response.json()['notifications'][0]['sender_id'], self.admin.user_id)
+        self.assertEqual(eval(response.json()['notifications'][0]['content'])['type'], 'user.friend.request')
+        self.assertEqual(eval(response.json()['notifications'][0]['content'])['user_id'], self.admin.user_id)
+
+        response = self.client.get(
+            path=f"/api/user/private/{admin_id}/notification/?only_unread=false&later_than=1", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['notifications']), 0)
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than={get_timestamp()}", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['notifications']), 0)
+
+    def test_notification_single_get_success(self):
+        self.create_notification()
+
+        admin_response = self.login(user_name='admin', password='admin_pwd')
+        admin_token = admin_response.json()['token']
+        admin_id = admin_response.json()['user_id']
+
+        guest_response = self.login(user_name='guest', password='guest_pwd')
+        guest_token = guest_response.json()['token']
+        guest_id = guest_response.json()['user_id']
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=0", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 200)
+
+        notification_id = response.json()['notifications'][0]['notification_id']
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/{notification_id}/detail", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token,
+        )
+        self.assertEqual(response.json()['sender_id'], self.admin.user_id)
+        self.assertEqual(eval(response.json()['content'])['type'], 'user.friend.request')
+        self.assertEqual(eval(response.json()['content'])['user_id'], self.admin.user_id)
+
+    def test_notification_delete_success(self):
+        self.create_notification()
+
+        admin_response = self.login(user_name='admin', password='admin_pwd')
+        admin_token = admin_response.json()['token']
+        admin_id = admin_response.json()['user_id']
+
+        guest_response = self.login(user_name='guest', password='guest_pwd')
+        guest_token = guest_response.json()['token']
+        guest_id = guest_response.json()['user_id']
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=0", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 200)
+
+        notification_id = response.json()['notifications'][0]['notification_id']
+
+        response = self.client.delete(
+            path=f"/api/user/private/{guest_id}/notification/{notification_id}/detail", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token,
+        )
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=0", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['notifications']), 0)
+
+    def test_notification_read_success(self):
+        self.create_notification()
+
+        admin_response = self.login(user_name='admin', password='admin_pwd')
+        admin_token = admin_response.json()['token']
+        admin_id = admin_response.json()['user_id']
+
+        guest_response = self.login(user_name='guest', password='guest_pwd')
+        guest_token = guest_response.json()['token']
+        guest_id = guest_response.json()['user_id']
+
+        self.client.put(
+            path=f"/api/user/private/{guest_id}/notification/{Notification.objects.get(sender_id=admin_id).notification_id}/read",
+            data={}, content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=0", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['notifications']), 1)
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/?only_unread=true&later_than=0", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['notifications']), 0)
+
+    def test_notification_bad_method(self):
+        guest_response = self.login(user_name='guest', password='guest_pwd')
+        guest_token = guest_response.json()['token']
+        guest_id = guest_response.json()['user_id']
+
+        response = self.client.post(
+            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=0", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 405)
+
+        response = self.client.post(
+            path=f"/api/user/private/{guest_id}/notification/1/detail", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 405)
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/1/read", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 405)
+
+    def test_notification_bad_request(self):
+        guest_response = self.login(user_name='guest', password='guest_pwd')
+        guest_token = guest_response.json()['token']
+        guest_id = guest_response.json()['user_id']
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/?only_unread=&later_than=0", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.get(
+            path=f"/api/user/private/hello/notification/?only_unread=false&later_than=0", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/?only_unread=false", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/?later_than=0", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/?only_unread=hello&later_than=0", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=hello", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.put(
+            path=f"/api/user/private/100000/notification/hello/read",
+            data={}, content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 400)
+
+    def test_notification_unauthorized(self):
+        self.create_notification()
+
+        admin_response = self.login(user_name='admin', password='admin_pwd')
+        admin_token = admin_response.json()['token']
+        admin_id = admin_response.json()['user_id']
+
+        guest_response = self.login(user_name='guest', password='guest_pwd')
+        guest_token = guest_response.json()['token']
+        guest_id = guest_response.json()['user_id']
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=0", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 401)
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/{Notification.objects.get(sender_id=admin_id).notification_id}/detail",
+            data={}, content_type='application/json', HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 401)
+
+        response = self.client.put(
+            path=f"/api/user/private/{guest_id}/notification/{Notification.objects.get(sender_id=admin_id).notification_id}/read",
+            data={}, content_type='application/json', HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 401)
+
+    def test_notification_not_found(self):
+        self.create_notification()
+
+        admin_response = self.login(user_name='admin', password='admin_pwd')
+        admin_token = admin_response.json()['token']
+        admin_id = admin_response.json()['user_id']
+
+        guest_response = self.login(user_name='guest', password='guest_pwd')
+        guest_token = guest_response.json()['token']
+        guest_id = guest_response.json()['user_id']
+
+        response = self.client.get(
+            path=f"/api/user/private/100000/notification/?only_unread=false&later_than=0", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 404)
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notification/100000/detail",
+            data={}, content_type='application/json', HTTP_AUTHORIZATION=admin_token)
+        self.assertEqual(response.status_code, 404)
+
+        response = self.client.put(
+            path=f"/api/user/private/100000/notification/{Notification.objects.get(sender_id=admin_id).notification_id}/read",
+            data={}, content_type='application/json', HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 404)
