@@ -40,8 +40,8 @@ class ChatTestCase(TestCase):
                                              data={'user_name': 'socrates', 'password': 'socrates_pwd'},
                                              content_type='application/json')
         socrates_token = socrates_response.json()['token']
-        response = self.client.post('/api/chat/', data={'user_id': self.socrates.user_id,
-                                                        'chat_name': 'Test'}
+        response = self.client.post('/api/chat/create', data={'user_id': self.socrates.user_id,
+                                                              'chat_name': 'Test'}
                                     , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['chat_id'], Chat.objects.get(chat_name='Test').chat_id)
@@ -52,8 +52,8 @@ class ChatTestCase(TestCase):
                                              data={'user_name': 'socrates', 'password': 'socrates_pwd'},
                                              content_type='application/json')
         socrates_token = socrates_response.json()['token']
-        response = self.client.post('/api/chat/', data={'user_id': self.socrates.user_id,
-                                                        'chat_name': 'Athens'}
+        response = self.client.post('/api/chat/create', data={'user_id': self.socrates.user_id,
+                                                              'chat_name': 'Athens'}
                                     , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
         self.assertEqual(response.status_code, 409)
 
@@ -62,16 +62,16 @@ class ChatTestCase(TestCase):
                                              data={'user_name': 'socrates', 'password': 'socrates_pwd'},
                                              content_type='application/json')
         socrates_token = socrates_response.json()['token']
-        response = self.client.delete('/api/chat/', data={'user_id': self.socrates.user_id,
-                                                          'chat_name': 'Athens'}
+        response = self.client.delete('/api/chat/create', data={'user_id': self.socrates.user_id,
+                                                                'chat_name': 'Athens'}
                                       , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
         self.assertEqual(response.status_code, 405)
-        response = self.client.get('/api/chat/', data={'user_id': self.socrates.user_id,
-                                                       'chat_name': 'Athens'}
+        response = self.client.get('/api/chat/create', data={'user_id': self.socrates.user_id,
+                                                             'chat_name': 'Athens'}
                                    , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
         self.assertEqual(response.status_code, 405)
-        response = self.client.put('/api/chat/', data={'user_id': self.socrates.user_id,
-                                                       'chat_name': 'Athens'}
+        response = self.client.put('/api/chat/create', data={'user_id': self.socrates.user_id,
+                                                             'chat_name': 'Athens'}
                                    , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
         self.assertEqual(response.status_code, 405)
 
@@ -80,11 +80,11 @@ class ChatTestCase(TestCase):
                                              data={'user_name': 'socrates', 'password': 'socrates_pwd'},
                                              content_type='application/json')
         socrates_token = socrates_response.json()['token']
-        response = self.client.post('/api/chat/', data={'user_id': "hello",
-                                                        'chat_name': 'Athens'}
+        response = self.client.post('/api/chat/create', data={'user_id': "hello",
+                                                              'chat_name': 'Athens'}
                                     , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
         self.assertEqual(response.status_code, 400)
-        response = self.client.post('/api/chat/', data={'user_id': "hello"}
+        response = self.client.post('/api/chat/create', data={'user_id': "hello"}
                                     , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
         self.assertEqual(response.status_code, 400)
 
