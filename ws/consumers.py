@@ -247,7 +247,7 @@ class PiazzaConsumer(WebsocketConsumer):
                 'type' : 'chat_message',
                 'msg_text' : message,
                 'datetime': now.isoformat(),
-                'user': self.user.username,
+                'user': self.user.user_name,
             }
         )
         self.send(text_data=json.dumps({'message':message}))
