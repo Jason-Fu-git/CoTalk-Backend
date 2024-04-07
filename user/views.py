@@ -145,11 +145,13 @@ def user_management(req: HttpRequest, user_id):
 
                     # update
                     if user_name is not None:
-                        if len(user_name) == 0 or len(user_name) > MAX_NAME_LENGTH:
+                        if len(user_name) > MAX_NAME_LENGTH:
                             return BAD_REQUEST("Username length error")
-                        if User.objects.filter(user_name=user_name).exists():
+                        if user_name != User.objects.get(user_id=user_id).user_name and User.objects.filter(
+                                user_name=user_name).exists():
                             return CONFLICT("Username conflict")
-                        user.user_name = user_name
+                        if len(user_name) > 0:
+                            user.user_name = user_name
 
                     if password is not None:
                         if len(password) == 0 or len(password) > MAX_NAME_LENGTH:
@@ -157,16 +159,18 @@ def user_management(req: HttpRequest, user_id):
                         user.password = password
 
                     if user_email is not None:
-                        if len(user_email) == 0 or len(user_email) > MAX_EMAIL_LENGTH:
+                        if len(user_email) > MAX_EMAIL_LENGTH:
                             return BAD_REQUEST("Email length error")
                         if not re.match(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$", user_email):
                             return BAD_REQUEST("Invalid email address")
-                        user.user_email = user_email
+                        if len(user_email) > 0:
+                            user.user_email = user_email
 
                     if description is not None:
-                        if len(description) == 0 or len(description) > MAX_DESCRIPTION_LENGTH:
+                        if len(description) > MAX_DESCRIPTION_LENGTH:
                             return BAD_REQUEST("Description length error")
-                        user.description = description
+                        if len(description) > 0:
+                            user.description = description
 
                     if avatar is not None:
                         user.avatar = avatar
