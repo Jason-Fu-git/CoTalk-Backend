@@ -8,6 +8,13 @@ MAX_NAME_LENGTH = 50
 MAX_EMAIL_LENGTH = 100
 MAX_DESCRIPTION_LENGTH = 100
 
+# 字符串
+NOT_FOUND_USER_ID = "Invalid user id : user not found"
+NOT_FOUND_CHAT_ID = "Invalid chat id : chat not found"
+NOT_FOUND_NOTIFICATION_ID = "Invalid notification id : notification not found"
+
+UNAUTHORIZED_JWT = "Unauthorized : JWT token is missing or invalid"
+
 
 # A decorator function for error processing
 def CheckError(check_fn):
