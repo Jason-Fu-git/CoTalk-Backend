@@ -40,6 +40,7 @@ class WSConsumer(AsyncWebsocketConsumer):
                         await self.channel_layer.group_add(
                             f'chat_{chat_id}',
                             self.channel_name)
+
                 await self.accept()
                 await self.create_client(user_id=user_id)
             else:
@@ -221,7 +222,6 @@ class WSConsumer(AsyncWebsocketConsumer):
 class PiazzaConsumer(WebsocketConsumer):
     def connect(self):
         self.room_group_name = "piazza"
-        self.user = self.scope['user']
         # 加入群组
         async_to_sync(self.channel_layer.group_add)(
             self.room_group_name,
@@ -247,7 +247,7 @@ class PiazzaConsumer(WebsocketConsumer):
                 'type': 'chat_message',
                 'msg_text': message,
                 'datetime': now.isoformat(),
-                'user': self.user.user_name,
+                'user': 'unknown',
             }
         )
         self.send(text_data=json.dumps({'message': message}))
