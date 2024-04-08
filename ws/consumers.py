@@ -239,15 +239,18 @@ class PiazzaConsumer(WebsocketConsumer):
     def receive(self, text_data):
         text_data_json = json.loads(text_data)
         message = text_data_json['message']
+        sender_id = text_data_json['sender_id']
+        sender_name = text_data_json['sender_name']
         now = timezone.now()
         # 将消息发到群组
         async_to_sync(self.channel_layer.group_send)(
             self.room_group_name,
             {
                 'type': 'chat_message',
-                'msg_text': message,
+                'message': message,
                 'datetime': now.isoformat(),
-                'user': 'unknown',
+                'sender_id': sender_id,
+                'sender_name': sender_name,
             }
         )
         self.send(text_data=json.dumps({'message': message}))
