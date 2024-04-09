@@ -3,7 +3,7 @@ from .models import User
 from utils.utils_jwt import generate_jwt_token
 from utils.utils_time import get_timestamp
 from chat.models import Chat, Membership
-from message.models import Notification
+from message.models import Notification, Message
 import json
 
 
@@ -57,7 +57,7 @@ class UserTestCase(TestCase):
         if description is not None:
             body['description'] = description
 
-        return self.client.post('/api/user/register', data=body, content_type='application/json')
+        return self.client.post('/api/user/register', data=body, format='multipart')
 
     def login(self, user_name, password):
         body = {}
@@ -86,8 +86,8 @@ class UserTestCase(TestCase):
         if description is not None:
             body['description'] = description
 
-        return self.client.put(f'/api/user/private/{user_id}', data=body, content_type='application/json',
-                               HTTP_AUTHORIZATION=token)
+        return self.client.post(f'/api/user/private/{user_id}', data=body, format='multipart',
+                                HTTP_AUTHORIZATION=token)
 
     def delete(self, user_id, token):
         return self.client.delete(f'/api/user/private/{user_id}', content_type='application/json',
@@ -97,6 +97,7 @@ class UserTestCase(TestCase):
     # === register section ===
     def test_register_success(self):
         response = self.register(user_name='test_register', password='test')
+        print(response.json())
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['user_name'], 'test_register')
         response = self.register(user_name='test_register1', password='test', user_email='123@qq.com',
@@ -184,7 +185,7 @@ class UserTestCase(TestCase):
         self.assertEqual(response2.status_code, 400)
 
     def test_get_invalid_methods(self):
-        response1 = self.client.post('/api/user/private/1')
+        response1 = self.client.put('/api/user/private/1')
         self.assertEqual(response1.status_code, 405)
 
     # === update section ===
@@ -267,6 +268,7 @@ class UserTestCase(TestCase):
     # === delete section ===
     def test_delete_success(self):
         register_delete = self.register(user_name='delete', password='delete_pwd')
+        print(register_delete.json())
         response = self.delete(user_id=register_delete.json()['user_id'],
                                token=register_delete.json()['token'])
         self.assertEqual(response.status_code, 200)
@@ -284,7 +286,7 @@ class UserTestCase(TestCase):
 
     # === friend section ===
     def test_search_success(self):
-        response = self.client.get(path='/api/user/search/Athens', content_type='application/json')
+        response = self.client.get(path='/api/user/search?search_text=Athens', content_type='application/json')
         self.assertEqual(response.status_code, 200)
         users = response.json()['users']
         self.assertEqual(len(users), 4)
@@ -322,6 +324,11 @@ class UserTestCase(TestCase):
                                    content_type='application/json', HTTP_AUTHORIZATION=plato_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()['friends']), 2)
+        # plato in two private chats
+        self.assertEqual(len(Chat.objects.filter(is_private=True)), 2)
+        for private_chat in Chat.objects.filter(is_private=True):
+            self.assertEqual(len(private_chat.get_memberships()), 2)
+
         friends = response.json()['friends']
         have_entered = False
         for friend in friends:
@@ -335,6 +342,9 @@ class UserTestCase(TestCase):
                               'approve': False},
                         content_type='application/json', HTTP_AUTHORIZATION=plato_token)
         self.assertEqual(len(self.plato.get_friends()), 1)
+        # plato now in 1 chat
+        self.assertEqual(len(Chat.objects.filter(is_private=True)), 1)
+
         # aristotle tries to make friends with socrates
         self.client.put(path=f'/api/user/private/{self.aristotle.user_id}/friends',
                         data={'friend_id': self.socrates.user_id},
@@ -371,7 +381,7 @@ class UserTestCase(TestCase):
         self.assertEqual(response.status_code, 405)
         response = self.client.delete(f'/api/user/search')
         self.assertEqual(response.status_code, 405)
-        response = self.client.post(f'/api/user/search/Ath')
+        response = self.client.post(f'/api/user/search?search_text=Ath')
         self.assertEqual(response.status_code, 405)
 
     def test_friend_unauthenticated(self):
@@ -461,12 +471,14 @@ class UserTestCase(TestCase):
         self.assertEqual(len(chats), 1)
         self.assertEqual(chats[0]['chat_name'], 'Admin_chat')
 
-        # admin exits
+        # admin exits as the owner
         response = self.client.delete(path=f"/api/user/private/{admin_id}/chats", data={"chat_id": chatA.chat_id},
                                       content_type='application/json', HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Membership.objects.filter(user_id=admin_id).exists())
         self.assertTrue(Membership.objects.get(user_id=guest_id).privilege == 'O')
+
+        self.assertEqual(len(Message.objects.filter(sender__user_name='system')), 2)
 
         # guest exits
         response = self.client.delete(path=f"/api/user/private/{guest_id}/chats", data={"chat_id": chatA.chat_id},
@@ -580,7 +592,7 @@ class UserTestCase(TestCase):
         guest_id = guest_response.json()['user_id']
 
         response = self.client.get(
-            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=0", data={},
+            path=f"/api/user/private/{guest_id}/notifications?only_unread=false&later_than=0", data={},
             content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()['notifications']), 1)
@@ -589,16 +601,34 @@ class UserTestCase(TestCase):
         self.assertEqual(eval(response.json()['notifications'][0]['content'])['user_id'], self.admin.user_id)
 
         response = self.client.get(
-            path=f"/api/user/private/{admin_id}/notification/?only_unread=false&later_than=1", data={},
+            path=f"/api/user/private/{admin_id}/notifications?only_unread=false&later_than=1", data={},
             content_type='application/json', HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()['notifications']), 0)
 
         response = self.client.get(
-            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than={get_timestamp()}", data={},
+            path=f"/api/user/private/{guest_id}/notifications?only_unread=false&later_than={get_timestamp()}", data={},
             content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()['notifications']), 0)
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notifications?only_unread=false", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['notifications']), 1)
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notifications?later_than=0", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['notifications']), 1)
+
+        response = self.client.get(
+            path=f"/api/user/private/{guest_id}/notifications", data={},
+            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['notifications']), 1)
 
     def test_notification_single_get_success(self):
         self.create_notification()
@@ -612,7 +642,7 @@ class UserTestCase(TestCase):
         guest_id = guest_response.json()['user_id']
 
         response = self.client.get(
-            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=0", data={},
+            path=f"/api/user/private/{guest_id}/notifications?only_unread=false&later_than=0", data={},
             content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 200)
 
@@ -638,7 +668,7 @@ class UserTestCase(TestCase):
         guest_id = guest_response.json()['user_id']
 
         response = self.client.get(
-            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=0", data={},
+            path=f"/api/user/private/{guest_id}/notifications?only_unread=false&later_than=0", data={},
             content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 200)
 
@@ -650,7 +680,7 @@ class UserTestCase(TestCase):
         )
 
         response = self.client.get(
-            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=0", data={},
+            path=f"/api/user/private/{guest_id}/notifications?only_unread=false&later_than=0", data={},
             content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()['notifications']), 0)
@@ -671,13 +701,13 @@ class UserTestCase(TestCase):
             data={}, content_type='application/json', HTTP_AUTHORIZATION=guest_token)
 
         response = self.client.get(
-            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=0", data={},
+            path=f"/api/user/private/{guest_id}/notifications?only_unread=false&later_than=0", data={},
             content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()['notifications']), 1)
 
         response = self.client.get(
-            path=f"/api/user/private/{guest_id}/notification/?only_unread=true&later_than=0", data={},
+            path=f"/api/user/private/{guest_id}/notifications?only_unread=true&later_than=0", data={},
             content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()['notifications']), 0)
@@ -688,7 +718,7 @@ class UserTestCase(TestCase):
         guest_id = guest_response.json()['user_id']
 
         response = self.client.post(
-            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=0", data={},
+            path=f"/api/user/private/{guest_id}/notifications?only_unread=false&later_than=0", data={},
             content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 405)
 
@@ -708,37 +738,27 @@ class UserTestCase(TestCase):
         guest_id = guest_response.json()['user_id']
 
         response = self.client.get(
-            path=f"/api/user/private/{guest_id}/notification/?only_unread=&later_than=0", data={},
+            path=f"/api/user/private/{guest_id}/notifications?only_unread=&later_than=0", data={},
             content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 400)
 
         response = self.client.get(
-            path=f"/api/user/private/hello/notification/?only_unread=false&later_than=0", data={},
+            path=f"/api/user/private/hello/notifications?only_unread=false&later_than=0", data={},
             content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 400)
 
         response = self.client.get(
-            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=", data={},
+            path=f"/api/user/private/{guest_id}/notifications?only_unread=false&later_than=", data={},
             content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 400)
 
         response = self.client.get(
-            path=f"/api/user/private/{guest_id}/notification/?only_unread=false", data={},
+            path=f"/api/user/private/{guest_id}/notifications?only_unread=hello&later_than=0", data={},
             content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 400)
 
         response = self.client.get(
-            path=f"/api/user/private/{guest_id}/notification/?later_than=0", data={},
-            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
-        self.assertEqual(response.status_code, 400)
-
-        response = self.client.get(
-            path=f"/api/user/private/{guest_id}/notification/?only_unread=hello&later_than=0", data={},
-            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
-        self.assertEqual(response.status_code, 400)
-
-        response = self.client.get(
-            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=hello", data={},
+            path=f"/api/user/private/{guest_id}/notifications?only_unread=false&later_than=hello", data={},
             content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 400)
 
@@ -759,7 +779,7 @@ class UserTestCase(TestCase):
         guest_id = guest_response.json()['user_id']
 
         response = self.client.get(
-            path=f"/api/user/private/{guest_id}/notification/?only_unread=false&later_than=0", data={},
+            path=f"/api/user/private/{guest_id}/notifications?only_unread=false&later_than=0", data={},
             content_type='application/json', HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 401)
 
@@ -785,7 +805,7 @@ class UserTestCase(TestCase):
         guest_id = guest_response.json()['user_id']
 
         response = self.client.get(
-            path=f"/api/user/private/100000/notification/?only_unread=false&later_than=0", data={},
+            path=f"/api/user/private/100000/notifications?only_unread=false&later_than=0", data={},
             content_type='application/json', HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 404)
 

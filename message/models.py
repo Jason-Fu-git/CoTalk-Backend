@@ -16,6 +16,7 @@ class Message(models.Model):
     :var msg_type: 消息类型（从 'text', 'image', 'audio', 'video', 'others' 大写首字母中选择）
     :var create_time: 消息创建时间
     :var update_time: 消息状态更新时间
+    :var is_system: 是否为系统消息
     """
     msg_id = models.BigAutoField(primary_key=True)
 
@@ -26,13 +27,16 @@ class Message(models.Model):
     msg_file = models.FileField(upload_to='../assets/messages/', blank=True)
     msg_type = models.CharField(max_length=10, choices=(('T', 'text'),
                                                         ('I', 'image'), ('A', 'audio'), ('V', 'video'),
-                                                        ('O', 'others')))
+                                                        ('O', 'others')), default='T')
     create_time = models.FloatField(default=get_timestamp)
     update_time = models.FloatField(default=get_timestamp)
 
     read_users = models.ManyToManyField(User, related_name='read_messages')
+    is_system = models.BooleanField(default=False)
 
     def __str__(self) -> str:
+        if self.is_system:
+            return f"system information {self.msg_text}"
         return f"{self.msg_id}'s type is {self.msg_type}, content is {self.msg_text}"
 
 
@@ -66,3 +70,63 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"{self.notification_id}'s content is {self.content}, the receiver is {self.receiver}"
+
+
+def kick_a_person(admin_id, member_id, chat_id):
+    """
+    为“踢出”事件创建系统通知
+    :param admin_id: 管理员id
+    :param member_id: 被踢者id
+    :param chat_id: 聊天id
+    """
+    system_user = User.objects.get(user_name='system')
+    admin = User.objects.get(user_id=admin_id)
+    member = User.objects.get(user_id=member_id)
+    message = Message.objects.create(sender=system_user, chat_id=chat_id, is_system=True,
+                                     msg_text=f'{admin.user_name} kicked {member.user_name} out of the chat.')
+    message.read_users.add(admin)
+    message.save()
+
+
+def join_a_chat(user_id, chat_id):
+    """
+    为“加入”事件创建系统通知
+    :param user_id: 用户id
+    :param chat_id: 聊天id
+    """
+    system_user = User.objects.get(user_name='system')
+    user = User.objects.get(user_id=user_id)
+    message = Message.objects.create(sender=system_user, chat_id=chat_id, is_system=True,
+                                     msg_text=f'{user.user_name} joined the chat.')
+    message.read_users.add(user)
+    message.save()
+
+
+def change_privilege(admin_id, member_id, chat_id, privilege):
+    """
+    为“更改权限”事件创建系统通知
+    :param admin_id: 管理员id
+    :param member_id: 被更改权限者id
+    :param chat_id: 聊天id
+    :param privilege: 更改权限的消息
+    """
+    system_user = User.objects.get(user_name='system')
+    admin = User.objects.get(user_id=admin_id)
+    member = User.objects.get(user_id=member_id)
+    message = Message.objects.create(sender=system_user, chat_id=chat_id, is_system=True,
+                                     msg_text=f'{admin.user_name} changed {member.user_name}\'s privilege to {privilege}.')
+    message.read_users.add(admin)
+    message.save()
+
+
+def leave_chat(user_id, chat_id):
+    """
+    为“离开”事件创建系统通知
+    :param user_id: 用户id
+    :param chat_id: 聊天id
+    """
+    system_user = User.objects.get(user_name='system')
+    user = User.objects.get(user_id=user_id)
+    message = Message.objects.create(sender=system_user, chat_id=chat_id, is_system=True,
+                                     msg_text=f'{user.user_name} left the chat.')
+    message.save()

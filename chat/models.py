@@ -14,9 +14,12 @@ class Chat(models.Model):
     :var is_private: 是否为私聊
     """
     chat_id = models.BigAutoField(primary_key=True)
-    chat_name = models.CharField(max_length=MAX_NAME_LENGTH, unique=True)
+    chat_name = models.CharField(max_length=MAX_NAME_LENGTH)
     create_time = models.FloatField(default=get_timestamp)
     is_private = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ('is_private', 'chat_name')
 
     def serialize(self) -> dict:
         return {
