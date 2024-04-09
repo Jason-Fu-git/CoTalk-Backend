@@ -392,6 +392,25 @@ def user_chats_management(req: HttpRequest, user_id):
         else:
             return NOT_FOUND("Invalid chat id or user not in chat")
 
+@CheckError
+def all_notifications(req: HttpRequest, user_id):
+    if req.method != 'GET':
+        return BAD_METHOD
+
+    user = User.objects.get(user_id=user_id)
+    notifications = Notification.objects.filter(receiver=user)
+
+    return request_success({
+        'notifications': [
+            return_field(notification.serialize(), [
+                'notification_id',
+                'sender_id',
+                'content',
+                'create_time',
+                'is_read',
+            ])
+            for notification in notifications]
+    })
 
 @CheckError
 def get_notification_list(req: HttpRequest, user_id):
