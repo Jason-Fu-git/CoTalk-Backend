@@ -3,7 +3,7 @@ from .models import User
 from utils.utils_jwt import generate_jwt_token
 from utils.utils_time import get_timestamp
 from chat.models import Chat, Membership
-from message.models import Notification
+from message.models import Notification, Message
 import json
 
 
@@ -471,12 +471,14 @@ class UserTestCase(TestCase):
         self.assertEqual(len(chats), 1)
         self.assertEqual(chats[0]['chat_name'], 'Admin_chat')
 
-        # admin exits
+        # admin exits as the owner
         response = self.client.delete(path=f"/api/user/private/{admin_id}/chats", data={"chat_id": chatA.chat_id},
                                       content_type='application/json', HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Membership.objects.filter(user_id=admin_id).exists())
         self.assertTrue(Membership.objects.get(user_id=guest_id).privilege == 'O')
+
+        self.assertEqual(len(Message.objects.filter(sender__user_name='system')), 2)
 
         # guest exits
         response = self.client.delete(path=f"/api/user/private/{guest_id}/chats", data={"chat_id": chatA.chat_id},

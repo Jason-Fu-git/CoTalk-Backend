@@ -11,7 +11,7 @@ from channels.layers import get_channel_layer
 from ws.models import Client
 from asgiref.sync import async_to_sync
 from chat.models import Chat, Membership
-from message.models import Notification
+from message.models import Notification, leave_chat, change_privilege
 
 
 @CheckError
@@ -334,7 +334,7 @@ def search(req: HttpRequest):
         return request_success({
             'users': [
                 return_field(user.serialize(), ['user_id', 'user_name', 'user_email', 'description', 'register_time'])
-                for user in users
+                for user in users if user.user_name != 'system'
             ]
         })
     else:
@@ -386,18 +386,25 @@ def user_chats_management(req: HttpRequest, user_id):
             chat = Chat.objects.get(chat_id=chat_id)
             if len(chat.get_memberships()) == 0:  # no people left, delete the chat
                 chat.delete()
+                return request_success()
             elif is_owner:  # owner exits, handover owner privilege
+
                 if chat.get_admins().exists():
-                    membership_owner = Membership.objects.get(
-                        user=chat.get_admins().first(),
-                        chat_id=chat_id)
-                    membership_owner.privilege = 'O'
-                    membership_owner.save()
+                    new_owner = chat.get_admins().first()
                 else:
-                    membership_owner = chat.get_memberships().first()
-                    membership_owner.privilege = 'O'
-                    membership_owner.save()
-            # todo : websocket
+                    new_owner = chat.get_memberships().first().user
+
+                # 更改新群主的权限
+                membership_owner = Membership.objects.get(
+                    user=new_owner,
+                    chat_id=chat_id)
+                membership_owner.privilege = 'O'
+                membership_owner.save()
+                # 新建系统消息
+                change_privilege(admin_id=user_id, member_id=new_owner.user_id, chat_id=chat_id, privilege='owner')
+
+            # 新建系统消息
+            leave_chat(chat_id=chat_id, user_id=user_id)
             return request_success()
         else:
             return NOT_FOUND("Invalid chat id or user not in chat")

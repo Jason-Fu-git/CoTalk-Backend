@@ -7,6 +7,7 @@ from utils.utils_jwt import generate_jwt_token, verify_a_user, generate_salt
 import json
 from user.models import User
 from .models import Chat, Membership
+from message.models import Message, Notification, kick_a_person, join_a_chat, change_privilege
 from ws.models import Client
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -45,8 +46,23 @@ def create_a_chat(req: HttpRequest):
     # notify the members
     if members is not None:
         for member in members:
-            # todo : use websocket to send notification
-            print(member)
+            notification_dict = {
+                'type': 'chat.management',
+                'status': 'make invitation',
+                'user_id': user_id,
+                'is_approved': True,
+            }
+            # 动态websocket
+            if Client.objects.filter(user_id=member).exists():
+                channel_name = Client.objects.get(user_id=member).channel_name
+                async_to_sync(get_channel_layer().send)(
+                    channel_name,
+                    notification_dict
+                )
+            # 静态notification
+            else:
+                Notification.objects.create(sender_id=user_id, receiver_id=member, content=str(notification_dict))
+
     return request_success({
         "chat_id": chat.chat_id,
         "create_time": chat.create_time
@@ -103,7 +119,6 @@ def chat_members(req: HttpRequest, chat_id):
                     'description': membership.user.description,
                     'register_time': membership.user.register_time,
                     'privilege': membership.privilege,
-                    # 'avatar'
                 }
                 for membership in memberships
             ]
@@ -126,6 +141,7 @@ def chat_members(req: HttpRequest, chat_id):
         else:
             channel_name = None
 
+        notification_dict = None
         # 判断请求情况
         if Membership.objects.filter(user_id=member_id, chat_id=chat_id).exists():
             membership = Membership.objects.get(user_id=member_id, chat_id=chat_id)
@@ -135,9 +151,15 @@ def chat_members(req: HttpRequest, chat_id):
                             and membership.privilege != 'O':
                         # have privilege and the other user is not the owner
                         membership.delete()
-                        if channel_name is not None:
-                            # todo : websocket
-                            pass
+                        # 新建系统消息
+                        kick_a_person(admin_id=user_id, member_id=member_id, chat_id=chat_id)
+                        # 新建系统通知
+                        notification_dict = {
+                            'type': 'chat.management',
+                            'status': 'kicked out',
+                            'user_id': user_id,
+                            'is_approved': False
+                        }
                     else:  # no privilege
                         return UNAUTHORIZED('Unauthorized: no management privilege')  # 400
             else:
@@ -145,7 +167,8 @@ def chat_members(req: HttpRequest, chat_id):
                     if approve:  # accept invitation
                         membership.is_approved = True
                         membership.save()
-                        # todo : broadcast to all the members
+                        # 新建系统消息
+                        join_a_chat(user_id=user_id, chat_id=chat_id)
                     else:  # reject invitation
                         membership.delete()
                 else:
@@ -154,9 +177,22 @@ def chat_members(req: HttpRequest, chat_id):
         else:  # make invitations
             Membership.objects.create(user_id=member_id, chat_id=chat_id, privilege='M',
                                       is_approved=False)
-            if channel_name is not None:
-                # todo : websocket
-                pass
+            # 新建系统通知
+            notification_dict = {
+                'type': 'chat.management',
+                'status': 'make invitation',
+                'user_id': user_id,
+                'is_approved': True
+            }
+
+        if channel_name is None:
+            # 静态Notification
+            Notification.objects.create(sender_id=user_id, receiver_id=member_id, content=str(notification_dict))
+        else:
+            # 动态websocket
+            async_to_sync(get_channel_layer().send)(
+                channel_name,
+                notification_dict)
         return request_success()
 
 
@@ -208,7 +244,6 @@ def chat_management(req: HttpRequest, chat_id):
         if user_privilege == 'O' or user_privilege == 'A':
             membership.privilege = 'M'
             membership.save()
-            # todo : use websocket
         else:
             return UNAUTHORIZED(NO_MANAGEMENT_PRIVILEGE)  # 401
     elif change_to == 'admin':
@@ -217,7 +252,6 @@ def chat_management(req: HttpRequest, chat_id):
                 return PRECONDITION_FAILED("There are already 3 admins")  # 412
             membership.privilege = 'A'
             membership.save()
-            # todo: use websocket
         else:
             return UNAUTHORIZED(NO_MANAGEMENT_PRIVILEGE)  # 401
     elif change_to == 'owner':
@@ -228,9 +262,31 @@ def chat_management(req: HttpRequest, chat_id):
             user_membership = Membership.objects.get(user_id=user_id, chat_id=chat_id)
             user_membership.privilege = 'M'
             user_membership.save()
-            # todo: use websocket
         else:
             return UNAUTHORIZED(NO_MANAGEMENT_PRIVILEGE)  # 401
     else:
         return BAD_REQUEST(f'Invalid change_to parameter: {change_to}')  # 400
+
+    # 新建系统消息
+    change_privilege(admin_id=user_id, member_id=member_id, chat_id=chat_id, privilege=change_to)
+
+    # 新建系统通知
+    notification_dict = {
+        'type': 'chat.management',
+        'status': f'change to {change_to}',
+        'user_id': user_id,
+        'is_approved': True
+    }
+
+    if Client.objects.filter(user_id=member_id).exists():
+        channel_name = Client.objects.get(user_id=member_id).channel_name
+        async_to_sync(get_channel_layer().send)(
+            channel_name,
+            notification_dict
+        )
+    else:
+        Notification.objects.create(sender_id=user_id,
+                                    receiver_id=member_id,
+                                    content=str(notification_dict))
+
     return request_success()
