@@ -185,14 +185,16 @@ def chat_members(req: HttpRequest, chat_id):
                 'is_approved': True
             }
 
-        if channel_name is None:
-            # 静态Notification
-            Notification.objects.create(sender_id=user_id, receiver_id=member_id, content=str(notification_dict))
-        else:
-            # 动态websocket
-            async_to_sync(get_channel_layer().send)(
-                channel_name,
-                notification_dict)
+        if notification_dict is not None:
+            if channel_name is None:
+                # 静态Notification
+                Notification.objects.create(sender_id=user_id, receiver_id=member_id, content=str(notification_dict))
+            else:
+                # 动态websocket
+                async_to_sync(get_channel_layer().send)(
+                    channel_name,
+                    notification_dict
+                )
         return request_success()
 
 

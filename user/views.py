@@ -22,8 +22,6 @@ def register(req: HttpRequest):
     if req.method != "POST":
         return BAD_METHOD  # 405
 
-    print(req.content_type)
-
     user_name = require(req.POST, "user_name", "string", err_msg="Missing or error type of [user_name]")
     password = require(req.POST, "password", "string", err_msg="Missing or error type of [password]")
     user_email = require(req.POST, "user_email", "string", err_msg="Missing or error type of [user_email]",
