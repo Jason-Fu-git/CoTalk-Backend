@@ -23,7 +23,7 @@ class WSTests(TestCase):
         if user_icon is not None:
             body['user_icon'] = user_icon
 
-        return self.client.post('/api/user/register', data=body, content_type='application/json')
+        return self.client.post('/api/user/register', data=body, format='multipart')
 
     async def test_ws_success(self):
         admin_response = await database_sync_to_async(self.register)(user_name='test_ws_success_admin',

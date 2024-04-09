@@ -57,7 +57,7 @@ class UserTestCase(TestCase):
         if description is not None:
             body['description'] = description
 
-        return self.client.post('/api/user/register', data=body, content_type='application/json')
+        return self.client.post('/api/user/register', data=body, format='multipart')
 
     def login(self, user_name, password):
         body = {}
@@ -86,8 +86,8 @@ class UserTestCase(TestCase):
         if description is not None:
             body['description'] = description
 
-        return self.client.put(f'/api/user/private/{user_id}', data=body, content_type='application/json',
-                               HTTP_AUTHORIZATION=token)
+        return self.client.post(f'/api/user/private/{user_id}', data=body, format='multipart',
+                                HTTP_AUTHORIZATION=token)
 
     def delete(self, user_id, token):
         return self.client.delete(f'/api/user/private/{user_id}', content_type='application/json',
@@ -97,6 +97,7 @@ class UserTestCase(TestCase):
     # === register section ===
     def test_register_success(self):
         response = self.register(user_name='test_register', password='test')
+        print(response.json())
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['user_name'], 'test_register')
         response = self.register(user_name='test_register1', password='test', user_email='123@qq.com',
@@ -184,7 +185,7 @@ class UserTestCase(TestCase):
         self.assertEqual(response2.status_code, 400)
 
     def test_get_invalid_methods(self):
-        response1 = self.client.post('/api/user/private/1')
+        response1 = self.client.put('/api/user/private/1')
         self.assertEqual(response1.status_code, 405)
 
     # === update section ===
@@ -267,6 +268,7 @@ class UserTestCase(TestCase):
     # === delete section ===
     def test_delete_success(self):
         register_delete = self.register(user_name='delete', password='delete_pwd')
+        print(register_delete.json())
         response = self.delete(user_id=register_delete.json()['user_id'],
                                token=register_delete.json()['token'])
         self.assertEqual(response.status_code, 200)
