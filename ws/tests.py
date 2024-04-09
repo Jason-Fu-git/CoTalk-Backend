@@ -289,10 +289,196 @@ class WSTests(TestCase):
         self.assertEqual(response['status'], "error")
         await communicator.disconnect()
 
+    async def test_chat_create_invitation_success(self):
+        socrates_response = await database_sync_to_async(self.register)('socrates', 'socrates_pwd')
+        self.assertEqual(socrates_response.status_code, 200)
+        socrates_token = socrates_response.json()['token']
+        socrates_id = socrates_response.json()['user_id']
+
+        plato_response = await database_sync_to_async(self.register)('plato', 'plato_pwd')
+        self.assertEqual(plato_response.status_code, 200)
+        plato_token = plato_response.json()['token']
+        plato_id = plato_response.json()['user_id']
+
+        aristotle_response = await database_sync_to_async(self.register)('aristotle', 'aristotle_pwd')
+        self.assertEqual(aristotle_response.status_code, 200)
+        aristotle_token = aristotle_response.json()['token']
+        aristotle_id = aristotle_response.json()['user_id']
+
+        socrates_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
+                                                      f'/ws/?Authorization={socrates_token}&user_id={socrates_id}')
+        connected, _ = await socrates_communicator.connect()
+        self.assertTrue(connected)
+
+        aristotle_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
+                                                       f'/ws/?Authorization={aristotle_token}&user_id={aristotle_id}')
+        connected, _ = await aristotle_communicator.connect()
+        self.assertTrue(connected)
+
+        plato_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
+                                                   f'/ws/?Authorization={plato_token}&user_id={plato_id}')
+        connected, _ = await plato_communicator.connect()
+        self.assertTrue(connected)
+
+        # socrates created a new chat
+        response = await database_sync_to_async(self.client.post)(path=f'/api/chat/create',
+                                                                  data={
+                                                                      "user_id": socrates_id,
+                                                                      "chat_name": "Athens",
+                                                                      "members": [
+                                                                          aristotle_id,
+                                                                          plato_id
+                                                                      ]
+                                                                  }, content_type='application/json',
+                                                                  HTTP_AUTHORIZATION=socrates_token)
+
+        self.assertEqual(response.status_code, 200)
+
+        # check whether aristotle and plato received the invitation
+        response = await aristotle_communicator.receive_json_from(timeout=5)
+        self.assertEqual(response['user_id'], socrates_id)
+
+        response = await plato_communicator.receive_json_from(timeout=5)
+        self.assertEqual(response['status'], 'make invitation')
+
+        await socrates_communicator.disconnect()
+        await plato_communicator.disconnect()
+        await aristotle_communicator.disconnect()
+
+    async def test_chat_invitation_success(self):
+        socrates_response = await database_sync_to_async(self.register)('socrates', 'socrates_pwd')
+        self.assertEqual(socrates_response.status_code, 200)
+        socrates_token = socrates_response.json()['token']
+        socrates_id = socrates_response.json()['user_id']
+
+        plato_response = await database_sync_to_async(self.register)('plato', 'plato_pwd')
+        self.assertEqual(plato_response.status_code, 200)
+        plato_token = plato_response.json()['token']
+        plato_id = plato_response.json()['user_id']
+
+        aristotle_response = await database_sync_to_async(self.register)('aristotle', 'aristotle_pwd')
+        self.assertEqual(aristotle_response.status_code, 200)
+        aristotle_token = aristotle_response.json()['token']
+        aristotle_id = aristotle_response.json()['user_id']
+
+        socrates_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
+                                                      f'/ws/?Authorization={socrates_token}&user_id={socrates_id}')
+        connected, _ = await socrates_communicator.connect()
+        self.assertTrue(connected)
+
+        aristotle_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
+                                                       f'/ws/?Authorization={aristotle_token}&user_id={aristotle_id}')
+        connected, _ = await aristotle_communicator.connect()
+        self.assertTrue(connected)
+
+        plato_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
+                                                   f'/ws/?Authorization={plato_token}&user_id={plato_id}')
+        connected, _ = await plato_communicator.connect()
+        self.assertTrue(connected)
+
+        _chat = await self.create_a_chat('Athens', [socrates_id, plato_id])
+        self.assertEqual(_chat.chat_name, 'Athens')
+
+        # socrates sends a chat invitation to aristotle
+        response = await database_sync_to_async(self.client.put)(f'/api/chat/{_chat.chat_id}/members',
+                                                                 data={'user_id': socrates_id,
+                                                                       'member_id': aristotle_id,
+                                                                       'approve': True},
+                                                                 content_type='application/json',
+                                                                 HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 200)
+
+        # check websocket
+        response = await aristotle_communicator.receive_json_from(timeout=5)
+        self.assertEqual(response['status'], 'make invitation')
+        self.assertEqual(response['user_id'], socrates_id)
+
+        # aristotle accepts
+        response = await database_sync_to_async(self.client.put)(f'/api/chat/{_chat.chat_id}/members',
+                                                                 data={'user_id': aristotle_id,
+                                                                       'member_id': aristotle_id,
+                                                                       'approve': True},
+                                                                 content_type='application/json',
+                                                                 HTTP_AUTHORIZATION=aristotle_token)
+        self.assertEqual(response.status_code, 200)
+
+        # plato kicked aristotle out
+        response = await database_sync_to_async(self.client.put)(f'/api/chat/{_chat.chat_id}/members',
+                                                                 data={'user_id': plato_id,
+                                                                       'member_id': aristotle_id,
+                                                                       'approve': False},
+                                                                 content_type='application/json',
+                                                                 HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 200)
+
+        # check websocket
+        response = await aristotle_communicator.receive_json_from(timeout=5)
+        self.assertEqual(response['status'], 'kicked out')
+        self.assertEqual(response['user_id'], plato_id)
+
+        await socrates_communicator.disconnect()
+        await plato_communicator.disconnect()
+        await aristotle_communicator.disconnect()
+
+    async def test_change_privilege_success(self):
+        socrates_response = await database_sync_to_async(self.register)('socrates', 'socrates_pwd')
+        self.assertEqual(socrates_response.status_code, 200)
+        socrates_token = socrates_response.json()['token']
+        socrates_id = socrates_response.json()['user_id']
+
+        plato_response = await database_sync_to_async(self.register)('plato', 'plato_pwd')
+        self.assertEqual(plato_response.status_code, 200)
+        plato_token = plato_response.json()['token']
+        plato_id = plato_response.json()['user_id']
+
+        aristotle_response = await database_sync_to_async(self.register)('aristotle', 'aristotle_pwd')
+        self.assertEqual(aristotle_response.status_code, 200)
+        aristotle_token = aristotle_response.json()['token']
+        aristotle_id = aristotle_response.json()['user_id']
+
+        socrates_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
+                                                      f'/ws/?Authorization={socrates_token}&user_id={socrates_id}')
+        connected, _ = await socrates_communicator.connect()
+        self.assertTrue(connected)
+
+        aristotle_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
+                                                       f'/ws/?Authorization={aristotle_token}&user_id={aristotle_id}')
+        connected, _ = await aristotle_communicator.connect()
+        self.assertTrue(connected)
+
+        plato_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
+                                                   f'/ws/?Authorization={plato_token}&user_id={plato_id}')
+        connected, _ = await plato_communicator.connect()
+        self.assertTrue(connected)
+
+        _chat = await self.create_a_chat('Athens', [socrates_id, plato_id])
+        self.assertEqual(_chat.chat_name, 'Athens')
+
+        # socrates attempts to change plato's privilege
+        response = await database_sync_to_async(self.client.put)(f'/api/chat/{_chat.chat_id}/management',
+                                                                 data={
+                                                                     'user_id': socrates_id,
+                                                                     'member_id': plato_id,
+                                                                     'change_to': 'member'
+                                                                 }, content_type='application/json',
+                                                                 HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 200)
+
+        # get websocket
+        response = await plato_communicator.receive_json_from(timeout=5)
+        self.assertEqual(response['status'], 'change to member')
+
+        await socrates_communicator.disconnect()
+        await plato_communicator.disconnect()
+        await aristotle_communicator.disconnect()
+
     @database_sync_to_async
     def create_a_chat(self, chat_name, user_ids):
         _chat = Chat.objects.create(chat_name=chat_name, is_private=False)
         _chat.save()
         for user_id in user_ids:
-            Membership.objects.create(user_id=user_id, chat=_chat, privilege='O', is_approved=True).save()
+            Membership.objects.create(user_id=user_id, chat=_chat, privilege='A', is_approved=True).save()
+        membership = Membership.objects.get(user_id=user_ids[0], chat=_chat)
+        membership.privilege = 'O'
+        membership.save()
         return _chat

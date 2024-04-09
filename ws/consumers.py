@@ -140,6 +140,25 @@ class WSConsumer(AsyncWebsocketConsumer):
                 'chat_id': chat_id
             }))
 
+    async def chat_management(self, event):
+        """
+        后端处理 `type` == `chat.management` 的事件
+        :param event: 事件数据
+        """
+        print(f'Channel {self.user.user_id} received:', event)
+        user_id = require(event, 'user_id', 'int')
+        status = require(event, 'status', 'string')
+        is_approved = require(event, 'is_approved', 'bool')
+        # 向前端发送消息
+        await self.send(text_data=json.dumps(
+            {
+                'type': 'user.friend.request',
+                'status': status,
+                'user_id': user_id,
+                'is_approved': is_approved
+            })
+        )
+
     # === 后端client之间通信处理 ===
 
     # === 前端事件处理 ===

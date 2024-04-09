@@ -1,6 +1,7 @@
 from django.test import TestCase
 from user.models import User
 from chat.models import Chat, Membership
+from message.models import Notification, Message
 
 
 class ChatTestCase(TestCase):
@@ -41,11 +42,18 @@ class ChatTestCase(TestCase):
                                              content_type='application/json')
         socrates_token = socrates_response.json()['token']
         response = self.client.post('/api/chat/create', data={'user_id': self.socrates.user_id,
-                                                              'chat_name': 'Test'}
+                                                              'chat_name': 'Test',
+                                                              'members': [self.aristotle.user_id, self.plato.user_id]}
                                     , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['chat_id'], Chat.objects.get(chat_name='Test').chat_id)
         self.assertEqual(Chat.objects.get(chat_name='Test').get_owner().user_id, self.socrates.user_id)
+        self.assertEqual(len(Notification.objects.filter(sender_id=self.socrates.user_id)), 2)
+
+        # check invitation
+        plato_notification = Notification.objects.get(sender_id=self.socrates.user_id, receiver_id=self.plato.user_id)
+        self.assertEqual(eval(plato_notification.content)['status'], 'make invitation')
+        self.assertEqual(eval(plato_notification.content)['user_id'], self.socrates.user_id)
 
     def test_create_chat_conflict(self):
         socrates_response = self.client.post('/api/user/login',
@@ -115,6 +123,11 @@ class ChatTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(self.athens.get_memberships()), 2)
 
+        # check notification
+        aristotle_notification = Notification.objects.get(sender_id=self.socrates.user_id,
+                                                          receiver_id=self.aristotle.user_id)
+        self.assertEqual(eval(aristotle_notification.content)['status'], 'make invitation')
+
         # aristotle accepts
         response = self.client.put(f'/api/chat/{self.athens.chat_id}/members',
                                    data={'user_id': self.aristotle.user_id,
@@ -124,6 +137,9 @@ class ChatTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(self.athens.get_memberships()), 3)
 
+        # check message
+        self.assertEqual(len(Message.objects.filter(chat_id=self.athens.chat_id)), 1)
+
         # plato kicked aristotle out
         response = self.client.put(f'/api/chat/{self.athens.chat_id}/members',
                                    data={'user_id': self.plato.user_id,
@@ -132,6 +148,14 @@ class ChatTestCase(TestCase):
                                    content_type='application/json', HTTP_AUTHORIZATION=plato_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(self.athens.get_memberships()), 2)
+
+        # check notification
+        plato_notification = Notification.objects.get(sender_id=self.plato.user_id,
+                                                      receiver_id=self.aristotle.user_id)
+        self.assertEqual(eval(plato_notification.content)['status'], 'kicked out')
+
+        # check message
+        self.assertEqual(len(Message.objects.filter(chat_id=self.athens.chat_id)), 2)
 
         # socrates re-invited aristotle
         response = self.client.put(f'/api/chat/{self.athens.chat_id}/members',
@@ -286,6 +310,14 @@ class ChatTestCase(TestCase):
                                    }, content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(self.athens.get_admins()), 0)
+
+        # get notification
+        notification = Notification.objects.get(sender_id=self.socrates.user_id, receiver_id=self.plato.user_id)
+        self.assertEqual(eval(notification.content)['status'], 'change to member')
+
+        # get message
+        self.assertEqual(Message.objects.get(sender__user_name='system', chat_id=self.athens.chat_id).msg_text,
+                         "socrates changed plato's privilege to member.")
 
         # socrates hand ownership to plato
         response = self.client.put(f'/api/chat/{self.athens.chat_id}/management',
