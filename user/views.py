@@ -1,6 +1,6 @@
 from utils.utils_require import (require, CheckError, MAX_DESCRIPTION_LENGTH, MAX_EMAIL_LENGTH, MAX_NAME_LENGTH,
                                  NOT_FOUND_USER_ID, NOT_FOUND_CHAT_ID, NOT_FOUND_NOTIFICATION_ID, UNAUTHORIZED_JWT)
-from django.http import HttpRequest, JsonResponse
+from django.http import HttpRequest, JsonResponse, FileResponse
 from utils.utils_request import (BAD_METHOD, request_success, request_failed, BAD_REQUEST,
                                  CONFLICT, SERVER_ERROR, NOT_FOUND, UNAUTHORIZED, PRECONDITION_FAILED, return_field)
 from utils.utils_jwt import generate_jwt_token, verify_a_user, generate_salt
@@ -22,16 +22,16 @@ def register(req: HttpRequest):
     if req.method != "POST":
         return BAD_METHOD  # 405
 
-    body = json.loads(req.body.decode("utf-8"))
+    print(req.content_type)
 
-    user_name = require(body, "user_name", "string", err_msg="Missing or error type of [user_name]")
-    password = require(body, "password", "string", err_msg="Missing or error type of [password]")
-    user_email = require(body, "user_email", "string", err_msg="Missing or error type of [user_email]",
+    user_name = require(req.POST, "user_name", "string", err_msg="Missing or error type of [user_name]")
+    password = require(req.POST, "password", "string", err_msg="Missing or error type of [password]")
+    user_email = require(req.POST, "user_email", "string", err_msg="Missing or error type of [user_email]",
                          is_essential=False)
-    description = require(body, "description", "string", err_msg="Missing or error type of [description]",
+    description = require(req.POST, "description", "string", err_msg="Missing or error type of [description]",
                           is_essential=False)
-    avatar = require(body, "avatar", "string", err_msg="Missing or error type of [avatar]",
-                     is_essential=False)  # todo:头像如何传输？
+    avatar = require(req.FILES, "avatar", "image", err_msg="Missing or error type of [avatar]",
+                     is_essential=False)
 
     # check validity of user_name , password, user_email and description
     if len(user_name) == 0 or len(user_name) > MAX_NAME_LENGTH:
@@ -54,25 +54,22 @@ def register(req: HttpRequest):
     if User.objects.filter(user_name=user_name).exists():
         return CONFLICT("Username conflict")  # 409
     else:
-        user = User.objects.create(user_name=user_name, password=password)
+        user = User.objects.create(user_name=user_name, password=password, jwt_token_salt=generate_salt())
         if user_email is not None:
             user.user_email = user_email
         if avatar is not None:
             user.user_icon = avatar
         if description is not None and len(description) > 0:
             user.description = description
-        SALT = generate_salt()
-        user.jwt_token_salt = SALT
         user.save()
 
         return request_success({
-            "token": generate_jwt_token(salt=SALT, user_id=user.user_id),
+            "token": generate_jwt_token(salt=user.jwt_token_salt, user_id=user.user_id),
             "user_id": user.user_id,
             "user_name": user.user_name,
             "user_email": user.user_email,
             "description": user.description,
             "register_time": user.register_time,
-            # "avatar": user.user_icon, # todo:handle avatar
         })
 
 
@@ -107,8 +104,28 @@ def login(req: HttpRequest):
         "user_email": user.user_email,
         "description": user.description,
         "register_time": user.register_time,
-        # "avatar": user.user_icon, # todo: handle avatar
     })
+
+
+@CheckError
+def get_user_avatar(req: HttpRequest, user_id):
+    """
+        用户头像获取视图
+        :param req: HTTP请求
+        :param user_id: url中的{user_id}
+        """
+    if req.method != 'GET':
+        return BAD_METHOD  # 405
+
+    try:
+        user_id = int(user_id)
+    except ValueError:
+        return BAD_REQUEST("User id must be an integer")  # 400
+
+    if not User.objects.filter(user_id=user_id).exists():
+        return NOT_FOUND("Invalid user id")  # 404
+
+    return FileResponse(User.objects.get(user_id=user_id).user_icon)
 
 
 @CheckError
@@ -118,7 +135,7 @@ def user_management(req: HttpRequest, user_id):
     :param req: HTTP请求
     :param user_id: url中的{user_id}
     """
-    if req.method != "DELETE" and req.method != "PUT" and req.method != 'GET':
+    if req.method != "DELETE" and req.method != "POST" and req.method != 'GET':
         return BAD_METHOD  # 405
 
     try:
@@ -140,13 +157,12 @@ def user_management(req: HttpRequest, user_id):
 
     # todo : 添加2FA/密码验证
     # passed all security check, update user
-    if req.method == "PUT":
-        body = json.loads(req.body.decode("utf-8"))
-        user_name = require(body, "user_name", is_essential=False)
-        password = require(body, "password", is_essential=False)
-        user_email = require(body, "user_email", is_essential=False)
-        description = require(body, "description", is_essential=False)
-        avatar = require(body, "avatar", is_essential=False)
+    if req.method == "POST":
+        user_name = require(req.POST, "user_name", 'string', is_essential=False)
+        password = require(req.POST, "password", 'string', is_essential=False)
+        user_email = require(req.POST, "user_email", 'string', is_essential=False)
+        description = require(req.POST, "description", 'string', is_essential=False)
+        avatar = require(req.FILES, "avatar", 'image', is_essential=False)
         # update
         if user_name is not None:
             if len(user_name) > MAX_NAME_LENGTH:
@@ -173,7 +189,7 @@ def user_management(req: HttpRequest, user_id):
             if len(description) > 0:
                 user.description = description
         if avatar is not None:
-            user.avatar = avatar
+            user.user_icon = avatar
         user.save()
     else:  # DELETE
         # passed all security check, delete user

@@ -1,7 +1,11 @@
 from django.db import models
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
 
 from utils.utils_time import get_timestamp
 from utils.utils_require import MAX_NAME_LENGTH, MAX_EMAIL_LENGTH, MAX_DESCRIPTION_LENGTH
+
+import os
 
 
 class User(models.Model):
@@ -25,7 +29,7 @@ class User(models.Model):
     login_time = models.FloatField(default=get_timestamp)
 
     user_email = models.CharField(max_length=MAX_EMAIL_LENGTH, blank=True)
-    user_icon = models.ImageField(upload_to='../assets/avatars/', blank=True)
+    user_icon = models.ImageField(upload_to='assets/avatars/', blank=True)
 
     jwt_token_salt = models.BinaryField(max_length=100, default=b'\x00' * 16)
 
@@ -36,7 +40,6 @@ class User(models.Model):
             "user_email": self.user_email,
             "description": self.description,
             "register_time": self.register_time,
-            # "avatar": self.user_icon, # todo: handle avatar
         }
 
     def get_memberships(self) -> models.QuerySet:
@@ -55,6 +58,15 @@ class User(models.Model):
 
     def __str__(self) -> str:
         return str(self.user_name)
+
+
+# 定义一个信号处理函数，在用户删除前删除对应的头像文件
+@receiver(pre_delete, sender=User)
+def delete_avatar_file(sender, instance, **kwargs):
+    if instance.user_icon:  # 如果用户有头像文件
+        # 删除对应的头像文件
+        if os.path.isfile(instance.user_icon.path):
+            os.remove(instance.user_icon.path)
 
 
 class Friendship(models.Model):
