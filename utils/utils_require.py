@@ -15,6 +15,7 @@ NOT_FOUND_CHAT_ID = "Invalid chat id : chat not found"
 NOT_FOUND_NOTIFICATION_ID = "Invalid notification id : notification not found"
 
 UNAUTHORIZED_JWT = "Unauthorized : JWT token is missing or invalid"
+NO_MANAGEMENT_PRIVILEGE = 'No management privilege'
 
 
 # A decorator function for error processing
