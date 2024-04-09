@@ -1,4 +1,5 @@
 from functools import wraps
+from django.core.files.uploadedfile import UploadedFile, InMemoryUploadedFile, SimpleUploadedFile
 from utils.utils_request import request_failed, BAD_REQUEST, SERVER_ERROR, UNAUTHORIZED
 import json
 
@@ -14,6 +15,7 @@ NOT_FOUND_CHAT_ID = "Invalid chat id : chat not found"
 NOT_FOUND_NOTIFICATION_ID = "Invalid notification id : notification not found"
 
 UNAUTHORIZED_JWT = "Unauthorized : JWT token is missing or invalid"
+NO_MANAGEMENT_PRIVILEGE = 'No management privilege'
 
 
 # A decorator function for error processing
@@ -98,6 +100,13 @@ def require(body, key, dtype="string", err_msg=None, is_essential=True):
                 raise KeyError(err_msg)
         except Exception as e:
             raise KeyError(err_msg)
+
+    elif dtype == 'image':
+        if isinstance(val, UploadedFile) or isinstance(val, InMemoryUploadedFile):
+            if not val.name.endswith('.jpg') and not val.name.endswith('.png') and not val.name.endswith('.jpeg'):
+                raise KeyError("Invalid parameters. Expected `file` to be a image file.")
+            return val
+        raise KeyError(err_msg)
 
     else:
         raise NotImplementedError(f"Type `{dtype}` not implemented.")
