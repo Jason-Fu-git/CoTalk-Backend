@@ -14,6 +14,9 @@ from channels.layers import get_channel_layer
 
 @CheckError
 def create_a_chat(req: HttpRequest):
+    """
+    创建聊天视图
+    """
     if req.method != 'POST':
         return BAD_METHOD  # 405
 
@@ -34,7 +37,7 @@ def create_a_chat(req: HttpRequest):
     if Chat.objects.filter(chat_name=chat_name).exists():
         return CONFLICT("Chat name conflict")
     # create a chat
-    chat = Chat.objects.create(chat_name=chat_name)
+    chat = Chat.objects.create(chat_name=chat_name, is_private=False)
     chat.save()
     # create a membership (Owner)
     membership = Membership.objects.create(user=user, chat=chat, privilege='O', is_approved=True)
@@ -52,13 +55,16 @@ def create_a_chat(req: HttpRequest):
 
 @CheckError
 def chat_members(req: HttpRequest, chat_id):
+    """
+    聊天成员获取/邀请视图
+    """
     if req.method != "GET" and req.method != "PUT":
         return BAD_METHOD  # 405
 
     try:
         chat_id = int(chat_id)
     except ValueError:
-        return BAD_REQUEST("Chat id must be an integer") # 400
+        return BAD_REQUEST("Chat id must be an integer")  # 400
 
     if req.content_type == "application/json":
         body = json.loads(req.body.decode('utf-8'))
@@ -156,6 +162,9 @@ def chat_members(req: HttpRequest, chat_id):
 
 @CheckError
 def chat_management(req: HttpRequest, chat_id):
+    """
+    聊天成员权限更改视图
+    """
     if req.method != 'PUT':
         return BAD_METHOD  # 405
 

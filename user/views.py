@@ -264,6 +264,9 @@ def friend_management(req: HttpRequest, user_id):
                         'user_id': user_id,
                         'is_approved': approve,
                     }
+                    # 删除私聊
+                    Chat.objects.filter(chat_name=f"Private {user_id}&{friend_id}", is_private=True).delete()
+                    Chat.objects.filter(chat_name=f"Private {friend_id}&{user_id}", is_private=True).delete()
             else:  # 响应好友请求
                 if approve:  # 同意请求
                     Friendship.objects.create(user=User.objects.get(user_id=user_id),
@@ -278,6 +281,10 @@ def friend_management(req: HttpRequest, user_id):
                         'user_id': user_id,
                         'is_approved': approve,
                     }
+                    # 此时，建立私聊
+                    chat = Chat.objects.create(chat_name=f"Private {user_id}&{friend_id}", is_private=True)
+                    Membership.objects.create(user_id=user_id, privilege='O', chat=chat, is_approved=True)
+                    Membership.objects.create(user_id=friend_id, privilege='M', chat=chat, is_approved=True)
                 else:  # 拒绝请求
                     BAFriendship.delete()
                     notification_dict = {
@@ -313,30 +320,17 @@ def friend_management(req: HttpRequest, user_id):
 
 
 @CheckError
-def all_users(req: HttpRequest):
-    """
-    获取所有用户信息
-    """
-    if req.method == 'GET':
-        users = User.objects.all()
-        return request_success({
-            'users': [
-                return_field(user.serialize(), ['user_id', 'user_name', 'user_email', 'description', 'register_time'])
-                for user in users
-            ]
-        })
-    else:
-        return BAD_METHOD
-
-
-@CheckError
-def search(req: HttpRequest, search_text):
+def search(req: HttpRequest):
     """
     搜索用户
     """
     if req.method == 'GET':
-        users = User.objects.filter(user_name__contains=search_text) | User.objects.filter(
-            user_email__contains=search_text)
+        search_text = require(req.GET, 'search_text', 'string', is_essential=False)
+        if search_text is None or search_text == '':
+            users = User.objects.all()
+        else:
+            users = User.objects.filter(user_name__contains=search_text) | User.objects.filter(
+                user_email__contains=search_text) | User.objects.filter(description__contains=search_text)
         return request_success({
             'users': [
                 return_field(user.serialize(), ['user_id', 'user_name', 'user_email', 'description', 'register_time'])
@@ -367,7 +361,7 @@ def user_chats_management(req: HttpRequest, user_id):
     if not verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req):
         return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
 
-        # verification passed
+    # verification passed
     if req.method == 'GET':  # 获取聊天列表
         chats = user.get_chats()
         if len(chats) == 0:
@@ -408,25 +402,6 @@ def user_chats_management(req: HttpRequest, user_id):
         else:
             return NOT_FOUND("Invalid chat id or user not in chat")
 
-@CheckError
-def all_notifications(req: HttpRequest, user_id):
-    if req.method != 'GET':
-        return BAD_METHOD
-
-    user = User.objects.get(user_id=user_id)
-    notifications = Notification.objects.filter(receiver=user)
-
-    return request_success({
-        'notifications': [
-            return_field(notification.serialize(), [
-                'notification_id',
-                'sender_id',
-                'content',
-                'create_time',
-                'is_read',
-            ])
-            for notification in notifications]
-    })
 
 @CheckError
 def get_notification_list(req: HttpRequest, user_id):
@@ -441,8 +416,14 @@ def get_notification_list(req: HttpRequest, user_id):
     except ValueError as e:
         return BAD_REQUEST("Invalid user id : must be integer")  # 400
 
-    only_unread = require(req.GET, 'only_unread', 'bool')
-    later_than = require(req.GET, 'later_than', 'float')
+    only_unread = require(req.GET, 'only_unread', 'bool', is_essential=False)
+    later_than = require(req.GET, 'later_than', 'float', is_essential=False)
+
+    if only_unread is None:
+        only_unread = False
+
+    if later_than is None:
+        later_than = 0
 
     if not User.objects.filter(user_id=user_id).exists():
         return NOT_FOUND(NOT_FOUND_USER_ID)  # 404
