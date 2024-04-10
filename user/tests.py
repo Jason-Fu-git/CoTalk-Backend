@@ -697,7 +697,7 @@ class UserTestCase(TestCase):
         guest_id = guest_response.json()['user_id']
 
         self.client.put(
-            path=f"/api/user/private/{guest_id}/notification/{Notification.objects.get(sender_id=admin_id).notification_id}/read",
+            path=f"/api/user/private/{guest_id}/notification/{Notification.objects.get(sender_id=admin_id).notification_id}/detail",
             data={}, content_type='application/json', HTTP_AUTHORIZATION=guest_token)
 
         response = self.client.get(
@@ -724,11 +724,6 @@ class UserTestCase(TestCase):
 
         response = self.client.post(
             path=f"/api/user/private/{guest_id}/notification/1/detail", data={},
-            content_type='application/json', HTTP_AUTHORIZATION=guest_token)
-        self.assertEqual(response.status_code, 405)
-
-        response = self.client.get(
-            path=f"/api/user/private/{guest_id}/notification/1/read", data={},
             content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 405)
 
@@ -763,7 +758,7 @@ class UserTestCase(TestCase):
         self.assertEqual(response.status_code, 400)
 
         response = self.client.put(
-            path=f"/api/user/private/100000/notification/hello/read",
+            path=f"/api/user/private/100000/notification/hello/detail",
             data={}, content_type='application/json', HTTP_AUTHORIZATION=guest_token)
         self.assertEqual(response.status_code, 400)
 
@@ -789,7 +784,7 @@ class UserTestCase(TestCase):
         self.assertEqual(response.status_code, 401)
 
         response = self.client.put(
-            path=f"/api/user/private/{guest_id}/notification/{Notification.objects.get(sender_id=admin_id).notification_id}/read",
+            path=f"/api/user/private/{guest_id}/notification/{Notification.objects.get(sender_id=admin_id).notification_id}/detail",
             data={}, content_type='application/json', HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 401)
 
@@ -815,6 +810,6 @@ class UserTestCase(TestCase):
         self.assertEqual(response.status_code, 404)
 
         response = self.client.put(
-            path=f"/api/user/private/100000/notification/{Notification.objects.get(sender_id=admin_id).notification_id}/read",
+            path=f"/api/user/private/100000/notification/{Notification.objects.get(sender_id=admin_id).notification_id}/detail",
             data={}, content_type='application/json', HTTP_AUTHORIZATION=admin_token)
         self.assertEqual(response.status_code, 404)
