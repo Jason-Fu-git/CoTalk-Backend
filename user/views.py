@@ -22,14 +22,13 @@ def register(req: HttpRequest):
     if req.method != "POST":
         return BAD_METHOD  # 405
 
-    user_name = require(req.POST, "user_name", "string", err_msg="Missing or error type of [user_name]")
-    password = require(req.POST, "password", "string", err_msg="Missing or error type of [password]")
+    user_name = require(req.POST, "user_name", "string", err_msg="Missing or error type of [user_name]", req=req)
+    password = require(req.POST, "password", "string", err_msg="Missing or error type of [password]", req=req)
     user_email = require(req.POST, "user_email", "string", err_msg="Missing or error type of [user_email]",
-                         is_essential=False)
+                         is_essential=False, req=req)
     description = require(req.POST, "description", "string", err_msg="Missing or error type of [description]",
-                          is_essential=False)
-    avatar = require(req.FILES, "avatar", "image", err_msg="Missing or error type of [avatar]",
-                     is_essential=False)
+                          is_essential=False, req=req)
+    avatar = require(req.FILES, "avatar", "image", err_msg="Missing or error type of [avatar]", is_essential=False)
 
     # check validity of user_name , password, user_email and description
     if len(user_name) == 0 or len(user_name) > MAX_NAME_LENGTH:
@@ -156,10 +155,10 @@ def user_management(req: HttpRequest, user_id):
     # todo : 添加2FA/密码验证
     # passed all security check, update user
     if req.method == "POST":
-        user_name = require(req.POST, "user_name", 'string', is_essential=False)
-        password = require(req.POST, "password", 'string', is_essential=False)
-        user_email = require(req.POST, "user_email", 'string', is_essential=False)
-        description = require(req.POST, "description", 'string', is_essential=False)
+        user_name = require(req.POST, "user_name", 'string', is_essential=False, req=req)
+        password = require(req.POST, "password", 'string', is_essential=False, req=req)
+        user_email = require(req.POST, "user_email", 'string', is_essential=False, req=req)
+        description = require(req.POST, "description", 'string', is_essential=False, req=req)
         avatar = require(req.FILES, "avatar", 'image', is_essential=False)
         # update
         if user_name is not None:
