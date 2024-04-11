@@ -457,11 +457,11 @@ def get_notification_list(req: HttpRequest, user_id):
 
 
 @CheckError
-def notification_detail_or_delete(req: HttpRequest, user_id, notification_id):
+def notification_detail_or_delete_or_read(req: HttpRequest, user_id, notification_id):
     """
     获取通知详情/删除通知
     """
-    if req.method != 'GET' and req.method != 'DELETE':
+    if req.method != 'GET' and req.method != 'DELETE' and req.method != 'PUT':
         return BAD_METHOD  # 405
 
     try:
@@ -490,37 +490,9 @@ def notification_detail_or_delete(req: HttpRequest, user_id, notification_id):
             "create_time": notification.create_time,
             "is_read": notification.is_read
         })
-    else:  # DELETE
+    elif req.method == 'DELETE':
         notification.delete()
-        return request_success()
-
-
-@CheckError
-def read_notification(req: HttpRequest, user_id, notification_id):
-    """
-    Read notification
-    """
-    if req.method != 'PUT':
-        return BAD_METHOD  # 405
-
-    try:
-        user_id = int(user_id)
-        notification_id = int(notification_id)
-    except ValueError as e:
-        return BAD_REQUEST("Invalid user id or notification id : must be integer")  # 400
-
-    if not User.objects.filter(user_id=user_id).exists():
-        return NOT_FOUND(NOT_FOUND_USER_ID)  # 404
-
-    if not Notification.objects.filter(notification_id=notification_id).exists():
-        return NOT_FOUND(NOT_FOUND_NOTIFICATION_ID)  # 404
-
-    user = User.objects.get(user_id=user_id)
-    notification = Notification.objects.get(notification_id=notification_id)
-
-    if not verify_a_user(salt=user.jwt_token_salt, req=req, user_id=user_id):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
-
-    notification.is_read = True
-    notification.save()
+    else:  # 'PUT'
+        notification.is_read = True
+        notification.save()
     return request_success()
