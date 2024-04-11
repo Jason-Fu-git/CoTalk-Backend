@@ -8,7 +8,7 @@ python3 manage.py migrate
 # start a redis server
 redis-server --port 6379 --bind 127.0.0.1 &
 
-python3 manage.py runserver
+python3 manage.py runserver 0.0.0.0:80
 
 # Run with uWSGI
 #uwsgi --module=CoTalkBackend.wsgi:application \
