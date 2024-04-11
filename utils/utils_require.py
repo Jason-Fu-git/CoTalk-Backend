@@ -37,7 +37,7 @@ def CheckError(check_fn):
     return decorated
 
 
-def require(body, key, dtype="string", err_msg=None, is_essential=True):
+def require(body, key, dtype="string", err_msg=None, is_essential=True, req=None):
     """
     从 body 中获取 key 对应的值，并检查其类型是否为 type。
     如果类型不匹配，则抛出 KeyError 异常。
@@ -46,17 +46,33 @@ def require(body, key, dtype="string", err_msg=None, is_essential=True):
     :param dtype: 期望的类型
     :param err_msg: 自定义错误信息
     :param is_essential: 是否为必需字段
+    :param req: 备用请求体
     :return: body[key]
     :raise: KeyError
     """
+
     if key not in body.keys():
+        if req is not None:
+            try:
+                req_body = json.loads(req.body.decode("utf-8"))
+                if key not in req_body.keys():
+                    val = None
+                else:
+                    val = req_body[key]
+            except Exception as e:
+                # ignore it
+                val = None
+        else:
+            val = None
+    else:
+        val = body[key]
+
+    if val is None:
         if is_essential:
             raise KeyError(err_msg if err_msg is not None
                            else f"Invalid parameters. Expected `{key}`, but not found.")
         else:
             return None
-
-    val = body[key]
 
     err_msg = f"Invalid parameters. Expected `{key}` to be `{dtype}` type." \
         if err_msg is None else err_msg
