@@ -239,69 +239,14 @@ class WSConsumer(AsyncWebsocketConsumer):
 
 # 公开论坛
 class PiazzaConsumer(WebsocketConsumer):
-    def connect(self):
+    async def connect(self):
         self.room_group_name = "piazza"
         # 加入群组
-        async_to_sync(self.channel_layer.group_add)(
+        await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
         )
-        self.accept()
-
-    def disconnect(self, close_code):
-        # 离开群组
-        async_to_sync(self.channel_layer.group_discard)(
-            self.room_group_name,
-            self.channel_name
-        )
-
-    def receive(self, text_data):
-        text_data_json = json.loads(text_data)
-        message = text_data_json['message']
-        sender_id = text_data_json['sender_id']
-        sender_name = text_data_json['sender_name']
-        now = timezone.now()
-        # 将消息发到群组
-        async_to_sync(self.channel_layer.group_send)(
-            self.room_group_name,
-            {
-                'type': 'chat_message',
-                'message': message,
-                'datetime': now.isoformat(),
-                'sender_id': sender_id,
-                'sender_name': sender_name,
-            }
-        )
-        self.send(text_data=json.dumps({'message': message}))
-
-    def chat_message(self, event):
-        self.send(text_data=json.dumps(event))
-
-#聊天连接
-class ChatConsumer(WebsocketConsumer):
-    async def connect(self):
-        #利用路由变量确定聊天群组
-        self.id = self.scope['url_patterns']['kwargs']['chat_id']
-        self.room_group_name = f'chat_{self.id}'
-
-        # 获取token
-        token = self.scope['url_patterns']['kwargs']['user_token']
-
-        # 获取user_id
-        user_id = self.scope['url_patterns']['kwargs']['user_id']
-
-        # 如果登录认证通过且用户之前未建立连接
-        if verify_a_user(salt=self.user.jwt_token_salt, user_id=user_id, req=None, token=token):
-            print(f'Channel {self.channel_name} connected, user id: {user_id}')
-            await self.channel_layer.group_add(
-                self.room_group_name,
-                self.channel_name
-            )
-            await self.accept()
-        else:
-            print('Authentication failed or user already connected')
-            await self.close()
-
+        await self.accept()
 
     async def disconnect(self, close_code):
         # 离开群组
@@ -327,7 +272,61 @@ class ChatConsumer(WebsocketConsumer):
                 'sender_name': sender_name,
             }
         )
-        self.send(text_data=json.dumps({'message': message}))
 
+    async def chat_message(self, event):
+        await self.send(text_data=json.dumps(event))
+
+# 聊天连接
+class ChatConsumer(WebsocketConsumer):
+    async def connect(self):
+        # 利用路由变量确定聊天群组
+        self.id = self.scope['url_patterns']['kwargs']['chat_id']
+        self.room_group_name = f'chat_{self.id}'
+
+        # 获取token
+        token = self.scope['url_patterns']['kwargs']['user_token']
+
+        # 获取user_id
+        user_id = self.scope['url_patterns']['kwargs']['user_id']
+
+        if verify_a_user(salt=self.user.jwt_token_salt, user_id=user_id, req=None, token=token):
+            print(f'Channel {self.channel_name} connected, user id: {user_id}')
+            await self.channel_layer.group_add(
+                self.room_group_name,
+                self.channel_name
+            )
+            await self.accept()
+        else:
+            print('Authentication failed or user already connected')
+            await self.close()
+
+
+    async def disconnect(self, close_code):
+        # 离开群组
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+
+    # 从WebSocket获得消息
+    async def receive(self, text_data):
+        text_data_json = json.loads(text_data)
+        message = text_data_json['message']
+        sender_id = text_data_json['sender_id']
+        sender_name = text_data_json['sender_name']
+        now = timezone.now()
+        # 将消息发到群组
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': 'chat_message',
+                'message': message,
+                'datetime': now.isoformat(),
+                'sender_id': sender_id,
+                'sender_name': sender_name,
+            }
+        )
+
+    # 从群组获得消息
     async def chat_message(self, event):
         await self.send(text_data=json.dumps(event))
