@@ -494,3 +494,25 @@ class ChatTestCase(TestCase):
                                          'change_to': 'admin'},
                                    content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
         self.assertEqual(response.status_code, 200)
+
+    # === Chat detail ===
+    def test_chat_detail_success(self):
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/detail',
+                                   content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['member_num'], 2)
+        self.assertEqual(response.json()['chat_name'], 'Athens')
+        self.assertEqual(response.json()['owner_id'], self.socrates.user_id)
+
+    def test_chat_detail_fail(self):
+        response = self.client.post(f'/api/chat/{self.athens.chat_id}/detail',
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 405)
+
+        response = self.client.get(f'/api/chat/hello/detail',
+                                   content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.get(f'/api/chat/102909/detail',
+                                   content_type='application/json')
+        self.assertEqual(response.status_code, 404)

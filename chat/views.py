@@ -50,6 +50,7 @@ def create_a_chat(req: HttpRequest):
                 'type': 'chat.management',
                 'status': 'make invitation',
                 'user_id': user_id,
+                'chat_id': chat.chat_id,
                 'is_approved': True,
             }
             # 动态websocket
@@ -66,6 +67,33 @@ def create_a_chat(req: HttpRequest):
     return request_success({
         "chat_id": chat.chat_id,
         "create_time": chat.create_time
+    })
+
+
+@CheckError
+def get_chat_detail(req: HttpRequest, chat_id):
+    """
+    获取一个聊天的聊天名、群主用户id、群成员数、创建时间、是否为私聊
+    """
+    if req.method != 'GET':
+        return BAD_METHOD  # 405
+
+    try:
+        chat_id = int(chat_id)
+    except ValueError:
+        return BAD_REQUEST("Chat id must be an integer")  # 400
+
+    if not Chat.objects.filter(chat_id=chat_id).exists():
+        return NOT_FOUND(NOT_FOUND_CHAT_ID)  # 404
+
+    chat = Chat.objects.get(chat_id=chat_id)
+    return request_success({
+        "chat_id": chat_id,
+        "chat_name": chat.chat_name,
+        "owner_id": chat.get_owner().user_id,
+        "member_num": len(chat.get_memberships()),
+        "create_time": chat.create_time,
+        "is_private": chat.is_private,
     })
 
 
@@ -158,6 +186,7 @@ def chat_members(req: HttpRequest, chat_id):
                             'type': 'chat.management',
                             'status': 'kicked out',
                             'user_id': user_id,
+                            'chat_id': chat_id,
                             'is_approved': False
                         }
                     else:  # no privilege
@@ -182,6 +211,7 @@ def chat_members(req: HttpRequest, chat_id):
                 'type': 'chat.management',
                 'status': 'make invitation',
                 'user_id': user_id,
+                'chat_id': chat_id,
                 'is_approved': True
             }
 
@@ -277,6 +307,7 @@ def chat_management(req: HttpRequest, chat_id):
         'type': 'chat.management',
         'status': f'change to {change_to}',
         'user_id': user_id,
+        'chat_id': chat_id,
         'is_approved': True
     }
 
