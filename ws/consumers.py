@@ -238,7 +238,7 @@ class WSConsumer(AsyncWebsocketConsumer):
 
 
 # 公开论坛
-class PiazzaConsumer(WebsocketConsumer):
+class PiazzaConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.room_group_name = "piazza"
         # 加入群组
@@ -277,13 +277,17 @@ class PiazzaConsumer(WebsocketConsumer):
         await self.send(text_data=json.dumps(event))
 
 # 聊天连接
-class ChatConsumer(WebsocketConsumer):
+class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         # 利用路由变量确定聊天群组
         self.id = self.scope['url_patterns']['kwargs']['chat_id']
         self.room_group_name = f'chat_{self.id}'
         # TODO: 身份验证
-        self.accept()
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
+        )
+        await self.accept()
 
     async def disconnect(self, close_code):
         # 离开群组
