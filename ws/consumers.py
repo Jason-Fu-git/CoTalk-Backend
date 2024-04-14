@@ -147,6 +147,7 @@ class WSConsumer(AsyncWebsocketConsumer):
         """
         print(f'Channel {self.user.user_id} received:', event)
         user_id = require(event, 'user_id', 'int')
+        chat_id = require(event, 'chat_id', 'int')
         status = require(event, 'status', 'string')
         is_approved = require(event, 'is_approved', 'bool')
         # 向前端发送消息
@@ -155,6 +156,7 @@ class WSConsumer(AsyncWebsocketConsumer):
                 'type': 'user.friend.request',
                 'status': status,
                 'user_id': user_id,
+                'chat_id': chat_id,
                 'is_approved': is_approved
             })
         )
@@ -275,6 +277,7 @@ class PiazzaConsumer(AsyncWebsocketConsumer):
 
     async def chat_message(self, event):
         await self.send(text_data=json.dumps(event))
+
 
 # 聊天连接
 class ChatConsumer(AsyncWebsocketConsumer):
