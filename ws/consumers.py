@@ -282,24 +282,8 @@ class ChatConsumer(WebsocketConsumer):
         # 利用路由变量确定聊天群组
         self.id = self.scope['url_patterns']['kwargs']['chat_id']
         self.room_group_name = f'chat_{self.id}'
-
-        # 获取token
-        token = self.scope['url_patterns']['kwargs']['user_token']
-
-        # 获取user_id
-        user_id = self.scope['url_patterns']['kwargs']['user_id']
-
-        if verify_a_user(salt=self.user.jwt_token_salt, user_id=user_id, req=None, token=token):
-            print(f'Channel {self.channel_name} connected, user id: {user_id}')
-            await self.channel_layer.group_add(
-                self.room_group_name,
-                self.channel_name
-            )
-            await self.accept()
-        else:
-            print('Authentication failed or user already connected')
-            await self.close()
-
+        # TODO: 身份验证
+        self.accept()
 
     async def disconnect(self, close_code):
         # 离开群组
