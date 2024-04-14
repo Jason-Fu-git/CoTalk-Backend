@@ -280,7 +280,7 @@ class PiazzaConsumer(AsyncWebsocketConsumer):
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         # 利用路由变量确定聊天群组
-        self.id = self.scope['url_patterns']['kwargs']['chat_id']
+        self.id = self.scope['url_route']['kwargs']['chat_id']
         self.room_group_name = f'chat_{self.id}'
         # TODO: 身份验证
         await self.channel_layer.group_add(
