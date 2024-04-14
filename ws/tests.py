@@ -333,13 +333,16 @@ class WSTests(TestCase):
                                                                   HTTP_AUTHORIZATION=socrates_token)
 
         self.assertEqual(response.status_code, 200)
+        chat_id = response.json()['chat_id']
 
         # check whether aristotle and plato received the invitation
         response = await aristotle_communicator.receive_json_from(timeout=5)
         self.assertEqual(response['user_id'], socrates_id)
+        self.assertEqual(response['chat_id'], chat_id)
 
         response = await plato_communicator.receive_json_from(timeout=5)
         self.assertEqual(response['status'], 'make invitation')
+        self.assertEqual(response['chat_id'], chat_id)
 
         await socrates_communicator.disconnect()
         await plato_communicator.disconnect()
@@ -392,6 +395,7 @@ class WSTests(TestCase):
         response = await aristotle_communicator.receive_json_from(timeout=5)
         self.assertEqual(response['status'], 'make invitation')
         self.assertEqual(response['user_id'], socrates_id)
+        self.assertEqual(response['chat_id'], _chat.chat_id)
 
         # aristotle accepts
         response = await database_sync_to_async(self.client.put)(f'/api/chat/{_chat.chat_id}/members',
@@ -415,6 +419,7 @@ class WSTests(TestCase):
         response = await aristotle_communicator.receive_json_from(timeout=5)
         self.assertEqual(response['status'], 'kicked out')
         self.assertEqual(response['user_id'], plato_id)
+        self.assertEqual(response['chat_id'], _chat.chat_id)
 
         await socrates_communicator.disconnect()
         await plato_communicator.disconnect()
@@ -467,6 +472,7 @@ class WSTests(TestCase):
         # get websocket
         response = await plato_communicator.receive_json_from(timeout=5)
         self.assertEqual(response['status'], 'change to member')
+        self.assertEqual(response['chat_id'], _chat.chat_id)
 
         await socrates_communicator.disconnect()
         await plato_communicator.disconnect()
