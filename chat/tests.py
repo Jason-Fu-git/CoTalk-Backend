@@ -45,6 +45,7 @@ class ChatTestCase(TestCase):
                                                               'chat_name': 'Test',
                                                               'members': [self.aristotle.user_id, self.plato.user_id]}
                                     , content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
+        chat_id = response.json()['chat_id']
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['chat_id'], Chat.objects.get(chat_name='Test').chat_id)
         self.assertEqual(Chat.objects.get(chat_name='Test').get_owner().user_id, self.socrates.user_id)
@@ -54,6 +55,27 @@ class ChatTestCase(TestCase):
         plato_notification = Notification.objects.get(sender_id=self.socrates.user_id, receiver_id=self.plato.user_id)
         self.assertEqual(eval(plato_notification.content)['status'], 'make invitation')
         self.assertEqual(eval(plato_notification.content)['user_id'], self.socrates.user_id)
+
+        plato_response = self.client.post('/api/user/login',
+                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
+                                          content_type='application/json')
+        plato_token = plato_response.json()['token']
+
+        # accept
+        response = self.client.put(f'/api/chat/{chat_id}/members',
+                                   data={
+                                       'user_id': self.plato.user_id,
+                                       'member_id': self.plato.user_id,
+                                       'approve': True
+                                   }, content_type='application/json', HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 200)
+
+        # test
+        response = self.client.get(f'/api/chat/{chat_id}/members',
+                                   data={
+                                       'user_id': self.plato.user_id,
+                                   }, content_type='application/json', HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(len(response.json()['members']), 2)
 
     def test_create_chat_conflict(self):
         socrates_response = self.client.post('/api/user/login',
