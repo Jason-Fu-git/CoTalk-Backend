@@ -53,6 +53,7 @@ def create_a_chat(req: HttpRequest):
                 'chat_id': chat.chat_id,
                 'is_approved': True,
             }
+            Membership.objects.create(user_id=member, chat_id=chat.chat_id, privilege='M', is_approved=False)
             # 动态websocket
             if Client.objects.filter(user_id=member).exists():
                 channel_name = Client.objects.get(user_id=member).channel_name
