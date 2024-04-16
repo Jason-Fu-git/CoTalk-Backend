@@ -149,8 +149,7 @@ def user_management(req: HttpRequest, user_id):
     if req.method == "GET":  # 获取用户信息
         return request_success(user.serialize())
 
-    if not verify_a_user(salt=SALT, user_id=user.user_id, req=req):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=SALT, user_id=user.user_id, req=req)
 
     # todo : 添加2FA/密码验证
     # passed all security check, update user
@@ -213,8 +212,7 @@ def friend_management(req: HttpRequest, user_id):
     user = User.objects.get(user_id=user_id)
     SALT = user.jwt_token_salt
 
-    if not verify_a_user(salt=SALT, user_id=user.user_id, req=req):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=SALT, user_id=user.user_id, req=req)
 
     # verification passed
     if req.method == 'GET':
@@ -355,8 +353,7 @@ def user_chats_management(req: HttpRequest, user_id):
         return NOT_FOUND(NOT_FOUND_USER_ID)  # 404
 
     user = User.objects.get(user_id=user_id)
-    if not verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req)
 
     # verification passed
     if req.method == 'GET':  # 获取聊天列表
@@ -434,8 +431,7 @@ def get_notification_list(req: HttpRequest, user_id):
 
     user = User.objects.get(user_id=user_id)
 
-    if not verify_a_user(salt=user.jwt_token_salt, req=req, user_id=user_id):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=user.jwt_token_salt, req=req, user_id=user_id)
 
     if only_unread:
         notifications = Notification.objects.filter(receiver=user, is_read=False, create_time__gte=later_than)
@@ -478,8 +474,7 @@ def notification_detail_or_delete_or_read(req: HttpRequest, user_id, notificatio
     user = User.objects.get(user_id=user_id)
     notification = Notification.objects.get(notification_id=notification_id)
 
-    if not verify_a_user(salt=user.jwt_token_salt, req=req, user_id=user_id):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=user.jwt_token_salt, req=req, user_id=user_id)
 
     if req.method == 'GET':
         return request_success({
