@@ -31,8 +31,7 @@ def create_a_chat(req: HttpRequest):
         return NOT_FOUND(NOT_FOUND_USER_ID)  # 404
 
     user = User.objects.get(user_id=user_id)
-    if not verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)
+    verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req)
 
     # verification passed
     if Chat.objects.filter(chat_name=chat_name).exists():
@@ -129,8 +128,7 @@ def chat_members(req: HttpRequest, chat_id):
 
     user = User.objects.get(user_id=user_id)
     SALT = user.jwt_token_salt
-    if not verify_a_user(salt=SALT, user_id=user.user_id, req=req):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=SALT, user_id=user.user_id, req=req)
 
     if not Membership.objects.filter(user_id=user_id, chat_id=chat_id).exists():
         return NOT_FOUND('Invalid chat id or user not in chat')  # 404
@@ -258,8 +256,7 @@ def chat_management(req: HttpRequest, chat_id):
     # Verification
     user_privilege = Membership.objects.get(user_id=user_id, chat_id=chat_id).privilege
     SALT = user.jwt_token_salt
-    if not verify_a_user(salt=SALT, user_id=user.user_id, req=req):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=SALT, user_id=user.user_id, req=req)
 
     if not User.objects.filter(user_id=member_id).exists():
         return NOT_FOUND("Invalid member id")  # 404
@@ -344,8 +341,7 @@ def get_messages(req: HttpRequest, chat_id):
         return NOT_FOUND(NOT_FOUND_USER_ID)  # 404
 
     user = User.objects.get(user_id=user_id)
-    if not verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req)
 
     # membership check
     if not Membership.objects.filter(chat_id=chat_id, user_id=user_id, is_approved=True).exists():

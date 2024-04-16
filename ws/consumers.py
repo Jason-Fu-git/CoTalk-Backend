@@ -48,6 +48,8 @@ class WSConsumer(AsyncWebsocketConsumer):
                 await self.close()
 
         except Exception as e:
+            if isinstance(e, ValueError) and str(e).startswith('Unauthorized'):
+                print('Authentication failed or user already connected')
             print(f'Error: {e}')
             await self.close()
 

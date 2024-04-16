@@ -68,7 +68,7 @@ def delete_related_files(sender, instance, **kwargs):
         if os.path.isfile(instance.user_icon.path):
             os.remove(instance.user_icon.path)
     # 删除所有与该用户相关的聊天文件
-    for msg in instance.chat_messages:
+    for msg in instance.user_messages.all():
         if msg.msg_file and os.path.isfile(msg.msg_file):
             os.remove(msg.msg_file)
 

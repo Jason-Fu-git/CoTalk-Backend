@@ -154,11 +154,90 @@ class MessageTestCase(TestCase):
         message = Message.objects.get(msg_id=response.json()['msg_id'])
         self.assertTrue(message.msg_file.name.endswith('.txt'))
 
+        response = self.client.post('/api/message/send',
+                                    data={
+                                        'user_id': self.socrates.user_id,
+                                        'chat_id': self.athens.chat_id,
+                                        'msg_text': 'Hello World!',
+                                        'msg_type': 'text',
+                                        'reply_to': message.msg_id,
+                                    }, format='multipart', HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 200)
+
+    def test_post_message_invalid_reply_to(self):
+        response = self.client.post('/api/message/send',
+                                    data={
+                                        'user_id': self.socrates.user_id,
+                                        'chat_id': self.athens.chat_id,
+                                        'msg_text': 'Hello World!',
+                                        'msg_type': 'text',
+                                        'reply_to': 'ni',
+                                    }, format='multipart', HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.post('/api/message/send',
+                                    data={
+                                        'user_id': self.socrates.user_id,
+                                        'chat_id': self.athens.chat_id,
+                                        'msg_text': 'Hello World!',
+                                        'msg_type': 'text',
+                                        'reply_to': 10090,
+                                    }, format='multipart', HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 404)
+
     def test_post_message_bad_request(self):
         response = self.client.post('/api/message/send',
                                     data={
                                         'chat_id': self.athens.chat_id,
                                         'msg_text': 'Hello World!',
+                                        'msg_type': 'text',
+                                    }, format='multipart', HTTP_AUTHORIZATION=self.socrates_token)
+
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.post('/api/message/send',
+                                    data={
+                                        'user_id': self.socrates.user_id,
+                                        'chat_id': self.athens.chat_id,
+                                        'msg_text':
+                                            """
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            01234567890123456789012345678901234567890123456789
+                                            """,
                                         'msg_type': 'text',
                                     }, format='multipart', HTTP_AUTHORIZATION=self.socrates_token)
 
@@ -412,3 +491,162 @@ class MessageTestCase(TestCase):
                                    data={'user_id': 128318293,
                                          }, HTTP_AUTHORIZATION=self.socrates_token)
         self.assertEqual(response.status_code, 404)
+
+    # === REMOVE A MESSAGE ===
+    def test_remove_message_success(self):
+        response = self.client.post('/api/message/send',
+                                    data={
+                                        'user_id': self.socrates.user_id,
+                                        'chat_id': self.athens.chat_id,
+                                        'msg_text': 'Hello World!',
+                                        'msg_type': 'text',
+                                    }, format='multipart', HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 200)
+        msg_id = response.json()['msg_id']
+
+        response = self.client.delete(f'/api/message/{msg_id}/management',
+                                      data={
+                                          'user_id': self.socrates.user_id,
+                                          'is_remove': True
+                                      },
+                                      content_type='application/json',
+                                      HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Message.objects.filter(msg_id=msg_id).exists())
+
+    def test_remove_message_precondition_failed(self):
+        response = self.client.post('/api/message/send',
+                                    data={
+                                        'user_id': self.socrates.user_id,
+                                        'chat_id': self.athens.chat_id,
+                                        'msg_text': 'Hello World!',
+                                        'msg_type': 'text',
+                                    }, format='multipart', HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 200)
+        msg_id = response.json()['msg_id']
+
+        message = Message.objects.get(msg_id=msg_id)
+        message.create_time = 0
+        message.save()
+
+        response = self.client.delete(f'/api/message/{msg_id}/management',
+                                      data={
+                                          'user_id': self.socrates.user_id,
+                                          'is_remove': True
+                                      },
+                                      content_type='application/json',
+                                      HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 412)
+
+    def test_remove_message_unauthorized(self):
+        response = self.client.post('/api/message/send',
+                                    data={
+                                        'user_id': self.socrates.user_id,
+                                        'chat_id': self.athens.chat_id,
+                                        'msg_text': 'Hello World!',
+                                        'msg_type': 'text',
+                                    }, format='multipart', HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 200)
+        msg_id = response.json()['msg_id']
+
+        response = self.client.delete(f'/api/message/{msg_id}/management',
+                                      data={
+                                          'user_id': self.plato.user_id,
+                                          'is_remove': True
+                                      },
+                                      content_type='application/json',
+                                      HTTP_AUTHORIZATION=self.plato_token)
+        self.assertEqual(response.status_code, 401)
+
+    # === delete a message ===
+    def test_delete_message_success(self):
+        response = self.client.post('/api/message/send',
+                                    data={
+                                        'user_id': self.socrates.user_id,
+                                        'chat_id': self.athens.chat_id,
+                                        'msg_text': 'Hello World!',
+                                        'msg_type': 'text',
+                                    }, format='multipart', HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 200)
+        msg_id = response.json()['msg_id']
+
+        response = self.client.delete(f'/api/message/{msg_id}/management',
+                                      data={
+                                          'user_id': self.socrates.user_id,
+                                          'is_remove': False
+                                      },
+                                      content_type='application/json',
+                                      HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Message.objects.filter(msg_id=msg_id).exists())
+
+        response = self.client.get(f'/api/message/{msg_id}/management',
+                                   data={
+                                       'user_id': self.socrates.user_id,
+                                   },
+                                   content_type='application/json',
+                                   HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 401)
+
+        # plato can see it, while socrates cannot
+        plato_messages = self.athens.get_messages(timestamp=0, user_id=self.plato.user_id)
+        socrates_messages = self.athens.get_messages(timestamp=0, user_id=self.socrates.user_id)
+
+        self.assertEqual(len(plato_messages), 1)
+        self.assertEqual(len(socrates_messages), 0)
+
+    # === read a message ===
+    def test_read_message_success(self):
+        response = self.client.post('/api/message/send',
+                                    data={
+                                        'user_id': self.socrates.user_id,
+                                        'chat_id': self.athens.chat_id,
+                                        'msg_text': 'Hello World!',
+                                        'msg_type': 'text',
+                                    }, format='multipart', HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 200)
+        msg_id = response.json()['msg_id']
+
+        response = self.client.put(f'/api/message/{msg_id}/management',
+                                   data={
+                                       'user_id': self.socrates.user_id,
+                                   },
+                                   content_type='application/json',
+                                   HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.put(f'/api/message/{msg_id}/management',
+                                   data={
+                                       'user_id': self.plato.user_id,
+                                   },
+                                   content_type='application/json',
+                                   HTTP_AUTHORIZATION=self.plato_token)
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get(f'/api/message/{msg_id}/management',
+                                   data={
+                                       'user_id': self.plato.user_id,
+                                   },
+                                   content_type='application/json',
+                                   HTTP_AUTHORIZATION=self.plato_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['read_users']), 2)
+
+    def test_read_message_bad_method(self):
+        response = self.client.post('/api/message/send',
+                                    data={
+                                        'user_id': self.socrates.user_id,
+                                        'chat_id': self.athens.chat_id,
+                                        'msg_text': 'Hello World!',
+                                        'msg_type': 'text',
+                                    }, format='multipart', HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 200)
+        msg_id = response.json()['msg_id']
+
+        response = self.client.post(f'/api/message/{msg_id}/management',
+                                    data={
+                                        'user_id': self.socrates.user_id,
+                                    },
+                                    content_type='application/json',
+                                    HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 405)

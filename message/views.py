@@ -36,8 +36,7 @@ def message_management(req: HttpRequest, message_id):
         return NOT_FOUND(NOT_FOUND_USER_ID)  # 404
 
     user = User.objects.get(user_id=user_id)
-    if not verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req)
 
     # message check
     if not Message.objects.filter(msg_id=message_id).exists():
@@ -91,7 +90,7 @@ def message_management(req: HttpRequest, message_id):
                 return UNAUTHORIZED("Unauthorized : the user is not the sender of the message")
 
             # check time
-            if get_timestamp() + 300 > message.create_time:
+            if get_timestamp() > message.create_time + 300:
                 return PRECONDITION_FAILED("Precondition Failed : time exceed")
 
             # delete
@@ -132,8 +131,7 @@ def post_message(req: HttpRequest):
     # verification
 
     user = User.objects.get(user_id=user_id)
-    if not verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req)
 
     # get reply to
     reply_to = require(req.POST, 'reply_to', 'int', is_essential=False, req=req)

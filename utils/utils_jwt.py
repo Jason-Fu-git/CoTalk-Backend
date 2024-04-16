@@ -95,7 +95,7 @@ def check_jwt_token(salt, token: str) -> Optional[dict]:
     return payload["data"]
 
 
-def verify_a_user(salt, user_id, req, token=None) -> bool:
+def verify_a_user(salt, user_id, req, token=None):
     """
     Verify a user by checking the JWT token.
     :param salt : 盐
@@ -120,5 +120,3 @@ def verify_a_user(salt, user_id, req, token=None) -> bool:
     if int(jwt_data["user_id"]) != int(user_id):
         print(f"User ID mismatch, expected {user_id}, got {jwt_data['user_id']}")
         raise ValueError("Unauthorized : User ID mismatch, Unauthorized")
-
-    return True
