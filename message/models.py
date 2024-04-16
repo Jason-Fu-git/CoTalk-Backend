@@ -27,7 +27,7 @@ class Message(models.Model):
     chat = models.ForeignKey(Chat, on_delete=models.CASCADE, related_name='chat_messages')
 
     msg_text = models.CharField(max_length=MAX_MESSAGE_LENGTH)
-    msg_file = models.FileField(upload_to=f'../assets/messages/user_{msg_id}', blank=True)
+    msg_file = models.FileField(upload_to=f'assets/message/', blank=True)
     msg_type = models.CharField(max_length=10, choices=(('T', 'text'),
                                                         ('I', 'image'), ('A', 'audio'), ('V', 'video'),
                                                         ('O', 'others')), default='T')

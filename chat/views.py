@@ -336,7 +336,7 @@ def get_messages(req: HttpRequest, chat_id):
     except ValueError as e:
         return BAD_REQUEST("Invalid chat id : Must be integer")  # 400
 
-    user_id = require(req.GET, 'user_id', 'string', req=req)
+    user_id = require(req.GET, 'user_id', 'int', req=req)
     later_than = require(req.GET, 'later_than', 'float', req=req)
 
     # user check

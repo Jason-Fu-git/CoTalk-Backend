@@ -18,6 +18,32 @@ NOT_FOUND_MESSAGE_ID = "Invalid message id : message not found"
 UNAUTHORIZED_JWT = "Unauthorized : JWT token is missing or invalid"
 NO_MANAGEMENT_PRIVILEGE = 'No management privilege'
 
+# 文件格式
+IMAGE_DICT = {
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png': 'image/png',
+    'gif': 'image/gif',
+    'bmp': 'image/bmp',
+    'webp': 'image/webp',
+    'svg': 'image/svg+xml'
+}
+
+AUDIO_DICT = {
+    'mp3': 'audio/mpeg',
+    'wav': 'audio/wav',
+    'ogg': 'audio/ogg',
+}
+
+VIDEO_DICT = {
+    'mp4': 'video/mp4',
+    'webm': 'video/webm',
+    'ogg': 'video/ogg',
+    'flv': 'video/x-flv',
+}
+
+BINARY_TYPE = 'application/octet-stream'
+
 
 # A decorator function for error processing
 def CheckError(check_fn):
@@ -120,8 +146,33 @@ def require(body, key, dtype="string", err_msg=None, is_essential=True, req=None
 
     elif dtype == 'image':
         if isinstance(val, UploadedFile) or isinstance(val, InMemoryUploadedFile):
-            if not val.name.endswith('.jpg') and not val.name.endswith('.png') and not val.name.endswith('.jpeg'):
-                raise KeyError("Invalid parameters. Expected `file` to be a image file.")
+            if val.name.split('.')[-1].lower() not in IMAGE_DICT.keys():
+                raise KeyError(
+                    "Invalid parameters. Expected `file` to be a image file, should be one of " + ','.join(
+                        IMAGE_DICT.keys()))
+            return val
+        raise KeyError(err_msg)
+
+    elif dtype == 'audio':
+        if isinstance(val, UploadedFile) or isinstance(val, InMemoryUploadedFile):
+            if val.name.split('.')[-1].lower() not in AUDIO_DICT.keys():
+                raise KeyError(
+                    "Invalid parameters. Expected `file` to be a audio file, should be one of " + ','.join(
+                        AUDIO_DICT.keys()))
+            return val
+        raise KeyError(err_msg)
+
+    elif dtype == 'video':
+        if isinstance(val, UploadedFile) or isinstance(val, InMemoryUploadedFile):
+            if val.name.split('.')[-1].lower() not in VIDEO_DICT.keys():
+                raise KeyError(
+                    "Invalid parameters. Expected `file` to be a video file, should be one of " + ','.join(
+                        VIDEO_DICT.keys()))
+            return val
+        raise KeyError(err_msg)
+
+    elif dtype == 'others':
+        if isinstance(val, UploadedFile) or isinstance(val, InMemoryUploadedFile):
             return val
         raise KeyError(err_msg)
 

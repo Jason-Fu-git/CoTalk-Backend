@@ -29,7 +29,7 @@ def message_management(req: HttpRequest, message_id):
     except ValueError as e:
         return BAD_REQUEST("Invalid message id : Must be integer")  # 400
 
-    user_id = require(req.GET, 'user_id', 'string', req=req)
+    user_id = require(req.GET, 'user_id', 'int', req=req)
 
     # user check
     if not User.objects.filter(user_id=user_id).exists():
@@ -40,10 +40,10 @@ def message_management(req: HttpRequest, message_id):
         return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
 
     # message check
-    if not Message.objects.filter(message_id=message_id).exists():
+    if not Message.objects.filter(msg_id=message_id).exists():
         return NOT_FOUND(NOT_FOUND_MESSAGE_ID)  # 404
 
-    message = Message.objects.get(message_id=message_id)
+    message = Message.objects.get(msg_id=message_id)
 
     # membership check
     if not Membership.objects.filter(chat_id=message.chat.chat_id, user_id=user_id, is_approved=True).exists():
@@ -57,30 +57,30 @@ def message_management(req: HttpRequest, message_id):
     if req.method == 'GET':
         return request_success(return_field(
             message.serialize(),
-            ["code",
-             "info",
+            [
+                "msg_id",
+                "sender_id",
+                "chat_id",
 
-             "msg_id",
-             "sender_id",
-             "chat_id",
+                "msg_text",
+                "msg_type",
 
-             "msg_text",
-             "msg_type",
+                "create_time",
+                "update_time",
 
-             "create_time",
-             "update_time",
+                "read_users",
+                "unable_to_see_users",
 
-             "read_users",
-             "unable_to_see_users",
-
-             "reply_to",
-             "is_system",
-             "msg_file_url"]
+                "reply_to",
+                "is_system",
+                "msg_file_url"]
         ))
     # put
     elif req.method == 'PUT':
         if not message.read_users.filter(user_id=user_id).exists():
             message.read_users.add(user_id)
+            message.update_time = get_timestamp()
+            message.save()
     # delete
     else:
         body = json.loads(req.body.decode('utf-8'))
@@ -98,6 +98,7 @@ def message_management(req: HttpRequest, message_id):
             message.delete()
         else:  # 删除
             message.unable_to_see_users.add(user_id)
+            message.save()
 
     return request_success()
 
@@ -111,8 +112,8 @@ def post_message(req: HttpRequest):
     if req.method != 'POST':
         return BAD_METHOD  # 405
 
-    user_id = require(req.POST, 'user_id', 'string', req=req)
-    chat_id = require(req.POST, 'chat_id', 'string', req=req)
+    user_id = require(req.POST, 'user_id', 'int', req=req)
+    chat_id = require(req.POST, 'chat_id', 'int', req=req)
     msg_text = require(req.POST, 'msg_text', 'string', req=req)
     msg_type = require(req.POST, 'msg_type', 'string', req=req)
 
@@ -135,11 +136,11 @@ def post_message(req: HttpRequest):
         return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
 
     # get reply to
-    reply_to = require(req.POST, 'reply_to', 'int', req=req)
+    reply_to = require(req.POST, 'reply_to', 'int', is_essential=False, req=req)
     if reply_to is not None:
-        if not Message.objects.filter(chat_id=chat_id, message_id=reply_to).exists():
+        if not Message.objects.filter(chat_id=chat_id, msg_id=reply_to).exists():
             return NOT_FOUND("Not found : reply_to message not found")  # 404
-        reply_to = Message.objects.get(chat_id=chat_id, message_id=reply_to)
+        reply_to = Message.objects.get(chat_id=chat_id, msg_id=reply_to)
 
     # check msg_length
     if len(msg_text) > MAX_MESSAGE_LENGTH:
@@ -149,44 +150,16 @@ def post_message(req: HttpRequest):
     if msg_type == 'text':
         message = Message.objects.create(sender_id=user_id, chat_id=chat_id, msg_text=msg_text, msg_type='T')
 
-        msg_file = require(req.FILES, 'msg_file', 'file')
-        message = Message.objects.create(sender_id=user_id, chat_id=chat_id, msg_text=msg_text, msg_type='')
-
     else:
-
-        msg_file = require(req.FILES, 'msg_file', 'file')
-        if msg_text == 'image':
-            if msg_file.name.endswith('.png') or msg_file.name.endswith('.jpg') or msg_file.name.endswith('.jpeg'):
-                message = Message.objects.create(sender_id=user_id, chat_id=chat_id, msg_text=msg_text, msg_type='I',
-                                                 msg_file=msg_file)
-            else:
-                return BAD_REQUEST(
-                    "Invalid msg_file : msg_file type not supported, should be one of png, jpg, jpeg")  # 400
-
-        elif msg_text == 'video':
-            if msg_file.name.endswith('.mp4') or msg_file.name.endswith('.avi') or msg_file.name.endswith(
-                    '.flv') or msg_file.name.endswith('.mkv'):
-                message = Message.objects.create(sender_id=user_id, chat_id=chat_id, msg_text=msg_text, msg_type='V',
-                                                 msg_file=msg_file)
-            else:
-                return BAD_REQUEST(
-                    "Invalid msg_file : msg_file type not supported, should be one of mp4, avi, flv, mkv")  # 400
-
-        elif msg_type == 'audio':
-            if msg_file.name.endswith('.mp3') or msg_file.name.endswith('.wav') or msg_file.name.endswith('.flac'):
-                message = Message.objects.create(sender_id=user_id, chat_id=chat_id, msg_text=msg_text, msg_type='A',
-                                                 msg_file=msg_file)
-
-            else:
-                return BAD_REQUEST(
-                    "Invalid msg_file : msg_file type not supported, should be one of mp3, wav, flac")  # 400
-
-        else:
-            message = Message.objects.create(sender_id=user_id, chat_id=chat_id, msg_text=msg_text, msg_type='O',
-                                             msg_file=msg_file)
+        msg_file = require(req.FILES, 'msg_file', msg_type)
+        message = Message.objects.create(sender_id=user_id, chat_id=chat_id, msg_text=msg_text, msg_type=msg_type,
+                                         msg_file=msg_file)
 
     if reply_to is not None:
         message.reply_to = reply_to.msg_id
         message.save()
 
-    return request_success()
+    return request_success({
+        'msg_id': message.msg_id,
+        'create_time': message.create_time
+    })
