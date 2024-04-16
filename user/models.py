@@ -60,13 +60,17 @@ class User(models.Model):
         return str(self.user_name)
 
 
-# 定义一个信号处理函数，在用户删除前删除对应的头像文件
+# 定义一个信号处理函数，在用户删除前删除对应的文件
 @receiver(pre_delete, sender=User)
-def delete_avatar_file(sender, instance, **kwargs):
-    if instance.user_icon:  # 如果用户有头像文件
+def delete_related_files(sender, instance, **kwargs):
+    if instance.user_icon:  # 如果用户有对应文件
         # 删除对应的头像文件
         if os.path.isfile(instance.user_icon.path):
             os.remove(instance.user_icon.path)
+    # 删除所有与该用户相关的聊天文件
+    for msg in instance.chat_messages:
+        if msg.msg_file and os.path.isfile(msg.msg_file):
+            os.remove(msg.msg_file)
 
 
 class Friendship(models.Model):

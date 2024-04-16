@@ -324,3 +324,58 @@ def chat_management(req: HttpRequest, chat_id):
                                     content=str(notification_dict))
 
     return request_success()
+
+
+@CheckError
+def get_messages(req: HttpRequest, chat_id):
+    if req.method != 'GET':
+        return BAD_METHOD  # 405
+
+    try:
+        chat_id = int(chat_id)
+    except ValueError as e:
+        return BAD_REQUEST("Invalid chat id : Must be integer")  # 400
+
+    user_id = require(req.GET, 'user_id', 'string', req=req)
+    later_than = require(req.GET, 'later_than', 'float', req=req)
+
+    # user check
+    if not User.objects.filter(user_id=user_id).exists():
+        return NOT_FOUND(NOT_FOUND_USER_ID)  # 404
+
+    user = User.objects.get(user_id=user_id)
+    if not verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req):
+        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+
+    # membership check
+    if not Membership.objects.filter(chat_id=chat_id, user_id=user_id, is_approved=True).exists():
+        return UNAUTHORIZED(f"Unauthorized : user {user_id} not in chat {chat_id}")
+
+    chat = Chat.objects.get(chat_id=chat_id)
+    messages = chat.get_messages(timestamp=later_than, user_id=user_id)
+
+    return request_success({
+        "messages": [
+            return_field(
+                message.serialize(),
+                ["code",
+                 "info",
+
+                 "msg_id",
+                 "sender_id",
+                 "chat_id",
+
+                 "msg_text",
+                 "msg_type",
+
+                 "create_time",
+                 "update_time",
+
+                 "read_users",
+
+                 "reply_to",
+                 "is_system",
+                 "msg_file_url"]
+            ) for message in messages
+        ]
+    })

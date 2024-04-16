@@ -16,6 +16,9 @@ class Message(models.Model):
     :var msg_type: 消息类型（从 'text', 'image', 'audio', 'video', 'others' 大写首字母中选择）
     :var create_time: 消息创建时间
     :var update_time: 消息状态更新时间
+    :var read_users: 已经读取消息的用户
+    :var unable_to_see_users: 不可视该消息的用户 （用户在前端标记删除）
+    :var reply_to : 回复某消息，默认为-1，表示没有指定回复
     :var is_system: 是否为系统消息
     """
     msg_id = models.BigAutoField(primary_key=True)
@@ -24,7 +27,7 @@ class Message(models.Model):
     chat = models.ForeignKey(Chat, on_delete=models.CASCADE, related_name='chat_messages')
 
     msg_text = models.CharField(max_length=MAX_MESSAGE_LENGTH)
-    msg_file = models.FileField(upload_to='../assets/messages/', blank=True)
+    msg_file = models.FileField(upload_to=f'../assets/messages/user_{msg_id}', blank=True)
     msg_type = models.CharField(max_length=10, choices=(('T', 'text'),
                                                         ('I', 'image'), ('A', 'audio'), ('V', 'video'),
                                                         ('O', 'others')), default='T')
@@ -32,7 +35,32 @@ class Message(models.Model):
     update_time = models.FloatField(default=get_timestamp)
 
     read_users = models.ManyToManyField(User, related_name='read_messages')
+    unable_to_see_users = models.ManyToManyField(User, related_name='unable_to_see_messages')
+
+    reply_to = models.IntegerField(default=-1)
+
     is_system = models.BooleanField(default=False)
+
+    # todo : 解决返回文件的问题
+    def serialize(self):
+        return {
+            'msg_id': self.msg_id,
+            'sender_id': self.sender.user_id,
+            'chat_id': self.chat.chat_id,
+
+            'msg_text': self.msg_text,
+            'msg_file_url': "",
+            'msg_type': self.msg_type,
+
+            'create_time': self.create_time,
+            'update_time': self.update_time,
+
+            'read_users': [user.user_id for user in self.read_users.all()],
+            'unable_to_see_users': [user.user_id for user in self.unable_to_see_users.all()],
+
+            'reply_to': self.reply_to,
+            'is_system': self.is_system
+        }
 
     def __str__(self) -> str:
         if self.is_system:
