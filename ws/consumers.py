@@ -30,7 +30,8 @@ class WSConsumer(AsyncWebsocketConsumer):
             exists = await self.client_exists(user_id=user_id)
 
             # 如果登录认证通过且用户之前未建立连接
-            if verify_a_user(salt=self.user.jwt_token_salt, user_id=user_id, req=None, token=jwt_token) and not exists:
+            verify_a_user(salt=self.user.jwt_token_salt, user_id=user_id, req=None, token=jwt_token)
+            if not exists:
                 print(f'Channel {self.channel_name} connected, user id: {user_id}')
                 # 从数据库中提取群聊
                 chat_ids = await self.get_chat_ids(user=self.user)
@@ -44,13 +45,13 @@ class WSConsumer(AsyncWebsocketConsumer):
                 await self.accept()
                 await self.create_client(user_id=user_id)
             else:
-                print('Authentication failed or user already connected')
+                print('User already connected')
                 await self.close()
 
         except Exception as e:
             if isinstance(e, ValueError) and str(e).startswith('Unauthorized'):
-                print('Authentication failed or user already connected')
-            print(f'Error: {e}')
+                print('Authentication failed')
+            print(f'Error: {str(e)}')
             await self.close()
 
     async def disconnect(self, close_code):

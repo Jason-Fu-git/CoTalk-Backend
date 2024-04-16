@@ -538,3 +538,124 @@ class ChatTestCase(TestCase):
         response = self.client.get(f'/api/chat/102909/detail',
                                    content_type='application/json')
         self.assertEqual(response.status_code, 404)
+
+    # === get message list ===
+    def test_get_message_list_success(self):
+        socrates_token = self.client.post('/api/user/login',
+                                          data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                          content_type='application/json').json()['token']
+
+        plato_token = self.client.post('/api/user/login',
+                                       data={'user_name': 'plato', 'password': 'plato_pwd'},
+                                       content_type='application/json').json()['token']
+
+        Message.objects.create(sender_id=self.socrates.user_id, chat_id=self.athens.chat_id,
+                               msg_text='Message #1', msg_type='T', create_time=1000)
+
+        Message.objects.create(sender_id=self.plato.user_id, chat_id=self.athens.chat_id,
+                               msg_text='Message #2', msg_type='T', create_time=2000)
+
+        Message.objects.create(sender_id=self.socrates.user_id, chat_id=self.athens.chat_id,
+                               msg_text='Message #3', msg_type='T', create_time=3000)
+
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
+                                   data={
+                                       'user_id': self.socrates.user_id,
+                                       'later_than': 2500,
+                                   }, HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['messages'][0]['msg_text'], 'Message #3')
+
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
+                                   data={
+                                       'user_id': self.plato.user_id,
+                                       'later_than': 1500,
+                                   }, HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['messages']), 2)
+
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
+                                   data={
+                                       'user_id': self.plato.user_id,
+                                   }, HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['messages']), 3)
+
+    def test_get_message_list_bad_request(self):
+        plato_token = self.client.post('/api/user/login',
+                                       data={'user_name': 'plato', 'password': 'plato_pwd'},
+                                       content_type='application/json').json()['token']
+
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
+                                   data={
+                                   }, HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
+                                   data={
+                                       'user_id': 'hello'
+                                   }, HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.get(f'/api/chat/hello/messages',
+                                   data={
+                                       'user_id': self.plato.user_id,
+                                   }, HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 400)
+
+    def test_get_message_list_bad_method(self):
+        plato_token = self.client.post('/api/user/login',
+                                       data={'user_name': 'plato', 'password': 'plato_pwd'},
+                                       content_type='application/json').json()['token']
+
+        response = self.client.post(f'/api/chat/{self.athens.chat_id}/messages',
+                                    data={
+                                        'user_id': self.plato.user_id,
+                                    }, HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 405)
+
+        response = self.client.put(f'/api/chat/{self.athens.chat_id}/messages',
+                                   data={
+                                       'user_id': self.plato.user_id,
+                                   }, HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 405)
+
+        response = self.client.delete(f'/api/chat/{self.athens.chat_id}/messages',
+                                      data={
+                                          'user_id': self.plato.user_id,
+                                      }, HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 405)
+
+    def test_get_message_list_unauthorized(self):
+        aristotle_token = self.client.post('/api/user/login',
+                                           data={'user_name': 'aristotle', 'password': 'aristotle_pwd'},
+                                           content_type='application/json').json()['token']
+
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
+                                   data={
+                                       'user_id': self.plato.user_id,
+                                   }, HTTP_AUTHORIZATION=aristotle_token)
+        self.assertEqual(response.status_code, 401)
+
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
+                                   data={
+                                       'user_id': self.aristotle.user_id,
+                                   }, HTTP_AUTHORIZATION=aristotle_token)
+        self.assertEqual(response.status_code, 401)
+
+    def test_get_message_list_not_found(self):
+        plato_token = self.client.post('/api/user/login',
+                                       data={'user_name': 'plato', 'password': 'plato_pwd'},
+                                       content_type='application/json').json()['token']
+
+        response = self.client.get(f'/api/chat/102909/messages',
+                                   data={
+                                       'user_id': self.plato.user_id,
+                                   }, HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 404)
+
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
+                                   data={
+                                       'user_id': 1283912,
+                                   }, HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 404)
