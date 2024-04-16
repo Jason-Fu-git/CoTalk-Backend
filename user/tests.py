@@ -271,6 +271,7 @@ class UserTestCase(TestCase):
         print(register_delete.json())
         response = self.delete(user_id=register_delete.json()['user_id'],
                                token=register_delete.json()['token'])
+        print(response.json())
         self.assertEqual(response.status_code, 200)
         self.assertFalse(User.objects.filter(user_name='delete').exists())
 
