@@ -311,11 +311,13 @@ class UserTestCase(TestCase):
                         data={'friend_id': self.plato.user_id},
                         content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
         self.client.put(path=f'/api/user/private/{self.plato.user_id}/friends',
-                        data={'friend_id': self.socrates.user_id},
+                        data={'friend_id': self.socrates.user_id,
+                              'group': 'teacher'},
                         content_type='application/json', HTTP_AUTHORIZATION=plato_token)
         # plato makes friend with aristotle
         self.client.put(path=f'/api/user/private/{self.plato.user_id}/friends',
-                        data={'friend_id': self.aristotle.user_id},
+                        data={'friend_id': self.aristotle.user_id,
+                              'group': 'athens'},
                         content_type='application/json', HTTP_AUTHORIZATION=plato_token)
         self.client.put(path=f'/api/user/private/{self.aristotle.user_id}/friends',
                         data={'friend_id': self.plato.user_id},
@@ -325,6 +327,28 @@ class UserTestCase(TestCase):
                                    content_type='application/json', HTTP_AUTHORIZATION=plato_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()['friends']), 2)
+        # verify their group
+        for friend in response.json()['friends']:
+            if friend['user_id'] == self.socrates.user_id:
+                self.assertEqual(friend['group'], 'teacher')
+                continue
+            self.assertEqual(friend['group'], 'athens')
+        # plato changed aristotle's group
+        response = self.client.put(path=f'/api/user/private/{self.plato.user_id}/friends',
+                                   data={'friend_id': self.aristotle.user_id,
+                                         'group': 'student'}, content_type='application/json',
+                                   HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get(path=f'/api/user/private/{self.plato.user_id}/friends',
+                                   content_type='application/json', HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 200)
+        for friend in response.json()['friends']:
+            if friend['user_id'] == self.socrates.user_id:
+                self.assertEqual(friend['group'], 'teacher')
+                continue
+            self.assertEqual(friend['group'], 'student')
+
         # plato in two private chats
         self.assertEqual(len(Chat.objects.filter(is_private=True)), 2)
         for private_chat in Chat.objects.filter(is_private=True):
