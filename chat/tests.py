@@ -550,13 +550,13 @@ class ChatTestCase(TestCase):
                                        content_type='application/json').json()['token']
 
         Message.objects.create(sender_id=self.socrates.user_id, chat_id=self.athens.chat_id,
-                               msg_text='Message #1', msg_type='T', create_time=1000)
+                               msg_text='Message #1', msg_type='T', create_time=1000, update_time=1000)
 
         Message.objects.create(sender_id=self.plato.user_id, chat_id=self.athens.chat_id,
-                               msg_text='Message #2', msg_type='T', create_time=2000)
+                               msg_text='Message #2', msg_type='T', create_time=2000, update_time=2000)
 
         Message.objects.create(sender_id=self.socrates.user_id, chat_id=self.athens.chat_id,
-                               msg_text='Message #3', msg_type='T', create_time=3000)
+                               msg_text='Message #3', msg_type='T', create_time=3000, update_time=3000)
 
         response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
                                    data={

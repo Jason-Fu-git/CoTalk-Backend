@@ -8,6 +8,24 @@ from chat.models import Chat, Membership
 
 class WSTests(TestCase):
     # 执行此单元测试前一定要运行redis!
+    def setUp(self):
+        # create 2 users and 1 chat
+        self.admin = User.objects.create(user_name='admin', password='admin_pwd')
+        self.guest = User.objects.create(user_name='guest', password='guest_pwd')
+        self.chat = Chat.objects.create(chat_name='test_chat', is_private=False)
+        Membership.objects.create(user=self.admin, chat=self.chat, privilege='O', is_approved=True)
+        Membership.objects.create(user=self.guest, chat=self.chat, privilege='M', is_approved=True)
+
+        # login 2 users
+        response = self.client.post('/api/user/login', data={'user_name': 'admin', 'password': 'admin_pwd'},
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.admin_token = response.json()['token']
+
+        response = self.client.post('/api/user/login', data={'user_name': 'guest', 'password': 'guest_pwd'},
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.guest_token = response.json()['token']
 
     def register(self, user_name, password, user_email=None, user_icon=None):
         body = {}
@@ -213,82 +231,6 @@ class WSTests(TestCase):
         await guest_communicator.disconnect()
         await admin_communicator.disconnect()
 
-    async def test_chat_msg_success(self):
-        socrates_response = await database_sync_to_async(self.register)('socrates', 'socrates_pwd')
-        self.assertEqual(socrates_response.status_code, 200)
-        socrates_token = socrates_response.json()['token']
-        socrates_id = socrates_response.json()['user_id']
-
-        plato_response = await database_sync_to_async(self.register)('plato', 'plato_pwd')
-        self.assertEqual(plato_response.status_code, 200)
-        plato_token = plato_response.json()['token']
-        plato_id = plato_response.json()['user_id']
-
-        aristotle_response = await database_sync_to_async(self.register)('aristotle', 'aristotle_pwd')
-        self.assertEqual(aristotle_response.status_code, 200)
-        aristotle_token = aristotle_response.json()['token']
-        aristotle_id = aristotle_response.json()['user_id']
-
-        # all of them are a member of Athens
-        _chat = await self.create_a_chat('Athens', [socrates_id, plato_id, aristotle_id])
-        self.assertEqual(_chat.chat_name, 'Athens')
-
-        # socrates sends a message to Athens
-        socrates_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                      f'/ws/?Authorization={socrates_token}&user_id={socrates_id}')
-        connected, _ = await socrates_communicator.connect()
-        self.assertTrue(connected)
-
-        aristotle_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                       f'/ws/?Authorization={aristotle_token}&user_id={aristotle_id}')
-        connected, _ = await aristotle_communicator.connect()
-        self.assertTrue(connected)
-
-        plato_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                   f'/ws/?Authorization={plato_token}&user_id={plato_id}')
-        connected, _ = await plato_communicator.connect()
-        self.assertTrue(connected)
-
-        await socrates_communicator.send_json_to({
-            "type": "chat.message",
-            "msg_text": "Hello, Athens!",
-            "msg_type": "T",
-            "chat_id": _chat.chat_id,
-        })
-
-        response = await aristotle_communicator.receive_json_from(timeout=5)
-        self.assertEqual(response['user_id'], socrates_id)
-        self.assertEqual(response['msg_text'], "Hello, Athens!")
-
-        response = await plato_communicator.receive_json_from(timeout=5)
-        self.assertEqual(response['user_id'], socrates_id)
-        self.assertEqual(response['msg_text'], "Hello, Athens!")
-
-        response = await socrates_communicator.receive_json_from(timeout=5)
-        self.assertEqual(response['status'], 'success')
-        response = await socrates_communicator.receive_json_from(timeout=5)
-        self.assertEqual(response['user_id'], socrates_id)
-        self.assertEqual(response['msg_text'], "Hello, Athens!")
-
-        await socrates_communicator.disconnect()
-        await plato_communicator.disconnect()
-        await aristotle_communicator.disconnect()
-
-    async def test_invalid_request(self):
-        admin_response = await database_sync_to_async(self.register)(user_name='test_ws_success_admin',
-                                                                     password='admin_pwd')
-        self.assertEqual(admin_response.status_code, 200)
-        token = admin_response.json()['token']
-        admin_id = admin_response.json()['user_id']
-        communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                             f'/ws/?Authorization={token}&user_id={admin_id}')
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-        await communicator.send_json_to({'msg_text': 'Hello, Athens!'})
-        response = await communicator.receive_json_from(timeout=5)
-        self.assertEqual(response['status'], "error")
-        await communicator.disconnect()
-
     async def test_chat_create_invitation_success(self):
         socrates_response = await database_sync_to_async(self.register)('socrates', 'socrates_pwd')
         self.assertEqual(socrates_response.status_code, 200)
@@ -477,6 +419,80 @@ class WSTests(TestCase):
         await socrates_communicator.disconnect()
         await plato_communicator.disconnect()
         await aristotle_communicator.disconnect()
+
+    async def test_message_success(self):
+        """
+        test websocket functionality of post/read/delete message
+        """
+
+        # connect 2 communicators
+        admin_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
+                                                   f'/ws/?Authorization={self.admin_token}&user_id={self.admin.user_id}')
+        connected, _ = await admin_communicator.connect()
+        self.assertTrue(connected)
+
+        guest_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
+                                                   f'/ws/?Authorization={self.guest_token}&user_id={self.guest.user_id}')
+        connected, _ = await guest_communicator.connect()
+        self.assertTrue(connected)
+
+        # admin send a message
+        response = await database_sync_to_async(self.client.post)('/api/message/send',
+                                                                  data={
+                                                                      'user_id': self.admin.user_id,
+                                                                      'chat_id': self.chat.chat_id,
+                                                                      'msg_text': 'Hello World!',
+                                                                      'msg_type': 'text',
+                                                                  }, format='multipart',
+                                                                  HTTP_AUTHORIZATION=self.admin_token)
+        self.assertEqual(response.status_code, 200)
+        msg_id = response.json()['msg_id']
+
+        # check guest's websocket
+        response = await guest_communicator.receive_json_from(timeout=5)
+        self.assertEqual(response['status'], 'send message')
+        self.assertEqual(response['msg_id'], msg_id)
+        self.assertEqual(response['user_id'], self.admin.user_id)
+        self.assertEqual(response['chat_id'], self.chat.chat_id)
+        # skip admin's websocket
+        response = await admin_communicator.receive_json_from(timeout=5)
+        self.assertEqual(response['status'], 'send message')
+
+        # guest read a message
+        response = await database_sync_to_async(self.client.put)(f'/api/message/{msg_id}/management',
+                                                                 data={
+                                                                     'user_id': self.guest.user_id,
+                                                                 },
+                                                                 content_type='application/json',
+                                                                 HTTP_AUTHORIZATION=self.guest_token)
+        self.assertEqual(response.status_code, 200)
+
+        # check admin's websocket
+        response = await admin_communicator.receive_json_from(timeout=5)
+        self.assertEqual(response['status'], 'read message')
+        self.assertEqual(response['msg_id'], msg_id)
+        self.assertEqual(response['user_id'], self.guest.user_id)
+
+        # skip guest's websocket
+        response = await guest_communicator.receive_json_from(timeout=5)
+        self.assertEqual(response['status'], 'read message')
+
+        # admin withdraw the message
+        response = await database_sync_to_async(self.client.delete)(f'/api/message/{msg_id}/management',
+                                                                    data={
+                                                                        'user_id': self.admin.user_id,
+                                                                        'is_remove': True
+                                                                    },
+                                                                    content_type='application/json',
+                                                                    HTTP_AUTHORIZATION=self.admin_token)
+        self.assertEqual(response.status_code, 200)
+
+        # check guest's websocket
+        response = await guest_communicator.receive_json_from(timeout=5)
+        self.assertEqual(response['status'], 'withdraw message')
+
+        await admin_communicator.disconnect()
+        await guest_communicator.disconnect()
 
     @database_sync_to_async
     def create_a_chat(self, chat_name, user_ids):

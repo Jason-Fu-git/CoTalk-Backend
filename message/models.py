@@ -100,6 +100,21 @@ class Notification(models.Model):
         return f"{self.notification_id}'s content is {self.content}, the receiver is {self.receiver}"
 
 
+def withdraw_a_message(user_id, chat_id):
+    """
+    为“撤回”事件创建系统通知
+    :param user_id: 用户id
+    :param chat_id: 聊天id
+    """
+    system_user = User.objects.get(user_name='system')
+    user = User.objects.get(user_id=user_id)
+    chat = Chat.objects.get(chat_id=chat_id)
+    message = Message.objects.create(sender=system_user, chat_id=chat_id, is_system=True,
+                                     msg_text=f'{user.user_name} withdrawn a message.')
+    message.read_users.add(user)
+    message.save()
+
+
 def kick_a_person(admin_id, member_id, chat_id):
     """
     为“踢出”事件创建系统通知

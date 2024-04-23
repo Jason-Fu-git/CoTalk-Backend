@@ -8,9 +8,8 @@ from utils.utils_jwt import generate_jwt_token, verify_a_user, generate_salt
 from utils.utils_time import get_timestamp
 import json
 from user.models import User
-from .models import Message, Notification
+from .models import Message, withdraw_a_message
 from chat.models import Chat, Membership
-from ws.models import Client
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
@@ -38,14 +37,17 @@ def message_management(req: HttpRequest, message_id):
     user = User.objects.get(user_id=user_id)
     verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req)
 
+    websocket_dict = None
+
     # message check
     if not Message.objects.filter(msg_id=message_id).exists():
         return NOT_FOUND(NOT_FOUND_MESSAGE_ID)  # 404
 
     message = Message.objects.get(msg_id=message_id)
+    chat_id = message.chat.chat_id
 
     # membership check
-    if not Membership.objects.filter(chat_id=message.chat.chat_id, user_id=user_id, is_approved=True).exists():
+    if not Membership.objects.filter(chat_id=chat_id, user_id=user_id, is_approved=True).exists():
         return UNAUTHORIZED("Unauthorized : the user cannot see the message")
 
     # unseen (delete) check
@@ -80,6 +82,15 @@ def message_management(req: HttpRequest, message_id):
             message.read_users.add(user_id)
             message.update_time = get_timestamp()
             message.save()
+            # 发送已读消息通知
+            websocket_dict = {
+                'type': 'chat.message',
+                'status': 'read message',
+                'user_id': user_id,
+                'chat_id': chat_id,
+                'msg_id': message_id,
+                'update_time': message.update_time
+            }
     # delete
     else:
         body = json.loads(req.body.decode('utf-8'))
@@ -93,11 +104,32 @@ def message_management(req: HttpRequest, message_id):
             if get_timestamp() > message.create_time + 300:
                 return PRECONDITION_FAILED("Precondition Failed : time exceed")
 
+            # 发送撤回消息通知
+            websocket_dict = {
+                'type': 'chat.message',
+                'status': 'withdraw message',
+                'user_id': user_id,
+                'chat_id': chat_id,
+                'msg_id': message_id,
+                'update_time': get_timestamp()
+            }
+
+            # 新建“撤回消息”系统通知
+            withdraw_a_message(user_id=user_id, chat_id=chat_id)
+
             # delete
             message.delete()
+
         else:  # 删除
             message.unable_to_see_users.add(user_id)
             message.save()
+
+    # 发送websocket通知到对应群组
+    if websocket_dict is not None:
+        async_to_sync(get_channel_layer().group_send)(
+            f'chat_{chat_id}',
+            websocket_dict
+        )
 
     return request_success()
 
@@ -156,6 +188,21 @@ def post_message(req: HttpRequest):
     if reply_to is not None:
         message.reply_to = reply_to.msg_id
         message.save()
+
+    # 发送“发送消息”通知
+    websocket_dict = {
+        'type': 'chat.message',
+        'status': 'send message',
+        'user_id': user_id,
+        'chat_id': chat_id,
+        'msg_id': message.msg_id,
+        'update_time': get_timestamp()
+    }
+
+    async_to_sync(get_channel_layer().group_send)(
+        f'chat_{chat_id}',
+        websocket_dict
+    )
 
     return request_success({
         'msg_id': message.msg_id,
