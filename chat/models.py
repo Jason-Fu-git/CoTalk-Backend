@@ -47,11 +47,11 @@ class Chat(models.Model):
         """
         return self.get_memberships().filter(privilege='A').all()
 
-    def get_messages(self, timestamp):
+    def get_messages(self, timestamp, user_id):
         """
         获取晚于timestamp的消息
         """
-        return self.chat_messages.filter(timestamp__gt=timestamp).all()
+        return self.chat_messages.exclude(unable_to_see_users__user_id=user_id).filter(update_time__gte=timestamp)
 
     def __str__(self) -> str:
         return f"{self.chat_name}"
