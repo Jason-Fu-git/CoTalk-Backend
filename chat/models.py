@@ -51,7 +51,7 @@ class Chat(models.Model):
         """
         获取晚于timestamp的消息
         """
-        return self.chat_messages.exclude(unable_to_see_users__user_id=user_id).filter(create_time__gt=timestamp)
+        return self.chat_messages.exclude(unable_to_see_users__user_id=user_id).filter(update_time__gte=timestamp)
 
     def __str__(self) -> str:
         return f"{self.chat_name}"
