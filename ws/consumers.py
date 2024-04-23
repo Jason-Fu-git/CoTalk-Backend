@@ -29,8 +29,11 @@ class WSConsumer(AsyncWebsocketConsumer):
 
             exists = await self.client_exists(user_id=user_id)
 
-            # 如果登录认证通过且用户之前未建立连接
-            if verify_a_user(salt=self.user.jwt_token_salt, user_id=user_id, req=None, token=jwt_token) and not exists:
+            # 检查用户身份
+            verify_a_user(salt=self.user.jwt_token_salt, user_id=user_id, req=None, token=jwt_token)
+
+            # 如果不存在连接，则建立
+            if not exists:
                 print(f'Channel {self.channel_name} connected, user id: {user_id}')
                 # 从数据库中提取群聊
                 chat_ids = await self.get_chat_ids(user=self.user)
@@ -44,11 +47,14 @@ class WSConsumer(AsyncWebsocketConsumer):
                 await self.accept()
                 await self.create_client(user_id=user_id)
             else:
-                print('Authentication failed or user already connected')
+                # 否则，关闭连接
+                print('User already connected')
                 await self.close()
 
         except Exception as e:
-            print(f'Error: {e}')
+            if isinstance(e, ValueError) and str(e).startswith('Unauthorized'):
+                print('Authentication failed')
+            print(f'Error: {str(e)}')
             await self.close()
 
     async def disconnect(self, close_code):
@@ -65,39 +71,6 @@ class WSConsumer(AsyncWebsocketConsumer):
             print(f'Channel {self.channel_name} disconnected, user_id:{self.user.user_id}')
         except Exception as e:
             print(e)
-
-    async def receive(self, text_data):
-        """
-        处理前端请求
-        """
-
-        print(f"Channel {self.channel_name} received" + text_data)
-        _type = ''
-        try:
-            text_data_json = json.loads(text_data)
-            _type = require(text_data_json, 'type', 'string')
-
-            # 聊天信息
-            if _type == 'chat.message':
-                chat_id = require(text_data_json, 'chat_id', 'int')
-                msg_type = require(text_data_json, 'msg_type', 'string')
-                if msg_type == 'T':  # 纯文本
-                    msg_text = require(text_data_json, 'msg_text', 'string')
-                    await self.chat_message_received_from_frontend(chat_id, msg_text, msg_type)
-
-        except Exception as e:
-            if _type == '':
-                await self.send(text_data=json.dumps({
-                    'type': 'error',
-                    'status': 'error',
-                    'info': 'Invalid or missing message type'
-                }))
-            else:
-                await self.send(text_data=json.dumps({
-                    'type': _type,
-                    'status': 'error',
-                    'info': str(e)
-                }))
 
     # === 后端client之间通信处理 ===
     async def user_friend_request(self, event):
@@ -125,19 +98,20 @@ class WSConsumer(AsyncWebsocketConsumer):
         :param event: 事件数据
         """
         print(f'Channel {self.user.user_id} received:', event)
-        chat_id = require(event, 'chat_id', 'int')
         user_id = require(event, 'user_id', 'int')
-        datetime = require(event, 'datetime', 'string')
-        msg_text = require(event, 'msg_text', 'string')
+        chat_id = require(event, 'chat_id', 'int')
+        msg_id = require(event, 'msg_id', 'int')
+        status = require(event, 'status', 'string')
+        update_time = require(event, 'update_time', 'float')
         # 向前端发送消息
         await self.send(text_data=json.dumps(
             {
                 'type': 'chat.message',
-                'status': 'received',
-                'msg_text': msg_text,
-                'datetime': datetime,
+                'status': status,
                 'user_id': user_id,
-                'chat_id': chat_id
+                'chat_id': chat_id,
+                'msg_id': msg_id,
+                'update_time': update_time
             }))
 
     async def chat_management(self, event):
@@ -162,42 +136,6 @@ class WSConsumer(AsyncWebsocketConsumer):
         )
 
     # === 后端client之间通信处理 ===
-
-    # === 前端事件处理 ===
-    async def chat_message_received_from_frontend(self, chat_id, msg_text, msg_type):
-        """
-        处理从聊天接收的消息
-        :param chat_id: 聊天ID
-        :param msg_text: 消息文本
-        :param msg_type: 消息类型
-        """
-        # todo : demo version, 需通知前端从数据库中提取消息以保证同步
-
-        # 将消息保存到数据库
-        msg = await self.create_msg(chat_id=chat_id, msg_text=msg_text, msg_type=msg_type)
-
-        # 通知给所有在线用户
-        await self.channel_layer.group_send(
-            f'chat_{chat_id}',
-            {
-                'type': 'chat.message',
-                'status': 'sent',
-                'msg_text': msg_text,
-                'datetime': msg.create_time,
-                'user_id': self.user.user_id,
-                'chat_id': chat_id,
-            }
-        )
-
-        # 将成功消息通知给前端
-        await self.send(text_data=json.dumps({
-            'type': 'chat.message',
-            'status': 'success',
-            'msg_id': msg.msg_id,
-            'create_time': msg.create_time,
-        }))
-
-    # === 前端事件处理 ===
 
     # === DJANGO ORM I/O ===
     @database_sync_to_async

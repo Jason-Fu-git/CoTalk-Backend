@@ -149,8 +149,7 @@ def user_management(req: HttpRequest, user_id):
     if req.method == "GET":  # 获取用户信息
         return request_success(user.serialize())
 
-    if not verify_a_user(salt=SALT, user_id=user.user_id, req=req):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=SALT, user_id=user.user_id, req=req)
 
     # todo : 添加2FA/密码验证
     # passed all security check, update user
@@ -213,16 +212,16 @@ def friend_management(req: HttpRequest, user_id):
     user = User.objects.get(user_id=user_id)
     SALT = user.jwt_token_salt
 
-    if not verify_a_user(salt=SALT, user_id=user.user_id, req=req):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=SALT, user_id=user.user_id, req=req)
 
     # verification passed
     if req.method == 'GET':
         friends = User.objects.get(user_id=user_id).get_friends()
         return request_success({
             "friends": [
-                return_field(User.objects.get(user_id=friend['friend']).serialize(),
-                             ['user_id', 'user_name', 'user_email', 'description', 'register_time'])
+                {**return_field(User.objects.get(user_id=friend['friend']).serialize(),
+                                ['user_id', 'user_name', 'user_email', 'description', 'register_time'])
+                    , 'group': friend['group']}
                 for friend in friends
             ]
         })
@@ -231,6 +230,7 @@ def friend_management(req: HttpRequest, user_id):
 
         friend_id = require(body, 'friend_id', 'int')
         approve = require(body, 'approve', 'bool', is_essential=False)
+        group = require(body, 'group', 'string', is_essential=False)
         if approve is None:
             approve = True
 
@@ -244,17 +244,17 @@ def friend_management(req: HttpRequest, user_id):
             channel_name = None
 
         # 判断是哪种情况
-        ABFriendship = Friendship.objects.filter(user_id=user_id, friend__user_id=friend_id)
-        BAFriendship = Friendship.objects.filter(user_id=friend_id, friend__user_id=user_id)
+        abFriendship = Friendship.objects.filter(user_id=user_id, friend__user_id=friend_id)
+        baFriendship = Friendship.objects.filter(user_id=friend_id, friend__user_id=user_id)
 
         # 通知
         notification_dict = {}
 
-        if BAFriendship.exists():
-            if ABFriendship.exists():
+        if baFriendship.exists():
+            if abFriendship.exists():
                 if not approve:  # 删除好友
-                    ABFriendship.delete()
-                    BAFriendship.delete()
+                    abFriendship.delete()
+                    baFriendship.delete()
                     notification_dict = {
                         'type': 'user.friend.request',
                         'status': 'delete',
@@ -264,26 +264,32 @@ def friend_management(req: HttpRequest, user_id):
                     # 删除私聊
                     Chat.objects.filter(chat_name=f"Private {user_id}&{friend_id}", is_private=True).delete()
                     Chat.objects.filter(chat_name=f"Private {friend_id}&{user_id}", is_private=True).delete()
+                elif group is not None:  # 更改分组
+                    abFriendship.update(group=group)
             else:  # 响应好友请求
                 if approve:  # 同意请求
-                    Friendship.objects.create(user=User.objects.get(user_id=user_id),
-                                              friend=User.objects.get(user_id=friend_id),
-                                              is_approved=True).save()
-                    BAFriendship = BAFriendship.first()
-                    BAFriendship.is_approved = True
-                    BAFriendship.save()
+                    abFriendship = Friendship.objects.create(user=User.objects.get(user_id=user_id),
+                                                             friend=User.objects.get(user_id=friend_id),
+                                                             is_approved=True)
+                    baFriendship = baFriendship.first()
+                    baFriendship.is_approved = True
+                    baFriendship.save()
                     notification_dict = {
                         'type': 'user.friend.request',
                         'status': 'accept request',
                         'user_id': user_id,
                         'is_approved': approve,
                     }
+                    # 更改分组
+                    if group is not None:
+                        abFriendship.group = group
+                        abFriendship.save()
                     # 此时，建立私聊
                     chat = Chat.objects.create(chat_name=f"Private {user_id}&{friend_id}", is_private=True)
                     Membership.objects.create(user_id=user_id, privilege='O', chat=chat, is_approved=True)
                     Membership.objects.create(user_id=friend_id, privilege='M', chat=chat, is_approved=True)
                 else:  # 拒绝请求
-                    BAFriendship.delete()
+                    baFriendship.delete()
                     notification_dict = {
                         'type': 'user.friend.request',
                         'status': 'reject request',
@@ -291,15 +297,19 @@ def friend_management(req: HttpRequest, user_id):
                         'is_approved': approve,
                     }
         else:  # 发起请求
-            Friendship.objects.create(user=User.objects.get(user_id=user_id),
-                                      friend=User.objects.get(user_id=friend_id),
-                                      is_approved=False).save()  # 首次请求的APPROVE应该是False
+            abFriendship = Friendship.objects.create(user=User.objects.get(user_id=user_id),
+                                                     friend=User.objects.get(user_id=friend_id),
+                                                     is_approved=False)  # 首次请求的APPROVE应该是False
             notification_dict = {
                 'type': 'user.friend.request',
                 'status': 'make request',
                 'user_id': user_id,
                 'is_approved': approve,
             }
+            # 更改分组
+            if group is not None:
+                abFriendship.group = group
+                abFriendship.save()
 
         # 执行通知
         if channel_name is not None:  # websocket 通知
@@ -355,8 +365,7 @@ def user_chats_management(req: HttpRequest, user_id):
         return NOT_FOUND(NOT_FOUND_USER_ID)  # 404
 
     user = User.objects.get(user_id=user_id)
-    if not verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req)
 
     # verification passed
     if req.method == 'GET':  # 获取聊天列表
@@ -434,8 +443,7 @@ def get_notification_list(req: HttpRequest, user_id):
 
     user = User.objects.get(user_id=user_id)
 
-    if not verify_a_user(salt=user.jwt_token_salt, req=req, user_id=user_id):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=user.jwt_token_salt, req=req, user_id=user_id)
 
     if only_unread:
         notifications = Notification.objects.filter(receiver=user, is_read=False, create_time__gte=later_than)
@@ -478,8 +486,7 @@ def notification_detail_or_delete_or_read(req: HttpRequest, user_id, notificatio
     user = User.objects.get(user_id=user_id)
     notification = Notification.objects.get(notification_id=notification_id)
 
-    if not verify_a_user(salt=user.jwt_token_salt, req=req, user_id=user_id):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=user.jwt_token_salt, req=req, user_id=user_id)
 
     if req.method == 'GET':
         return request_success({

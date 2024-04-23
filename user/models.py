@@ -46,7 +46,7 @@ class User(models.Model):
         return self.user_membership.filter(is_approved=True)
 
     def get_friends(self) -> models.QuerySet:
-        return self.user_friendship.filter(is_approved=True).values('friend')
+        return self.user_friendship.filter(is_approved=True).values('friend', 'group')
 
     def get_chats(self) -> models.QuerySet:
         return self.get_memberships().values('chat')
@@ -60,13 +60,17 @@ class User(models.Model):
         return str(self.user_name)
 
 
-# 定义一个信号处理函数，在用户删除前删除对应的头像文件
+# 定义一个信号处理函数，在用户删除前删除对应的文件
 @receiver(pre_delete, sender=User)
-def delete_avatar_file(sender, instance, **kwargs):
-    if instance.user_icon:  # 如果用户有头像文件
+def delete_related_files(sender, instance, **kwargs):
+    if instance.user_icon:  # 如果用户有对应文件
         # 删除对应的头像文件
         if os.path.isfile(instance.user_icon.path):
             os.remove(instance.user_icon.path)
+    # 删除所有与该用户相关的聊天文件
+    for msg in instance.user_messages.all():
+        if msg.msg_file and os.path.isfile(msg.msg_file):
+            os.remove(msg.msg_file)
 
 
 class Friendship(models.Model):
@@ -80,6 +84,7 @@ class Friendship(models.Model):
     """
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_friendship')
     friend = models.ForeignKey(User, on_delete=models.CASCADE, related_name='friend_friendship')
+    group = models.CharField(max_length=MAX_NAME_LENGTH, default="ungrouped")
     update_time = models.FloatField(default=get_timestamp)
     is_approved = models.BooleanField(default=False)
 

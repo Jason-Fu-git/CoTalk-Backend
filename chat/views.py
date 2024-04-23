@@ -31,8 +31,7 @@ def create_a_chat(req: HttpRequest):
         return NOT_FOUND(NOT_FOUND_USER_ID)  # 404
 
     user = User.objects.get(user_id=user_id)
-    if not verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)
+    verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req)
 
     # verification passed
     if Chat.objects.filter(chat_name=chat_name).exists():
@@ -129,8 +128,7 @@ def chat_members(req: HttpRequest, chat_id):
 
     user = User.objects.get(user_id=user_id)
     SALT = user.jwt_token_salt
-    if not verify_a_user(salt=SALT, user_id=user.user_id, req=req):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=SALT, user_id=user.user_id, req=req)
 
     if not Membership.objects.filter(user_id=user_id, chat_id=chat_id).exists():
         return NOT_FOUND('Invalid chat id or user not in chat')  # 404
@@ -258,8 +256,7 @@ def chat_management(req: HttpRequest, chat_id):
     # Verification
     user_privilege = Membership.objects.get(user_id=user_id, chat_id=chat_id).privilege
     SALT = user.jwt_token_salt
-    if not verify_a_user(salt=SALT, user_id=user.user_id, req=req):
-        return UNAUTHORIZED(UNAUTHORIZED_JWT)  # 401
+    verify_a_user(salt=SALT, user_id=user.user_id, req=req)
 
     if not User.objects.filter(user_id=member_id).exists():
         return NOT_FOUND("Invalid member id")  # 404
@@ -324,3 +321,62 @@ def chat_management(req: HttpRequest, chat_id):
                                     content=str(notification_dict))
 
     return request_success()
+
+
+@CheckError
+def get_messages(req: HttpRequest, chat_id):
+    if req.method != 'GET':
+        return BAD_METHOD  # 405
+
+    try:
+        chat_id = int(chat_id)
+    except ValueError as e:
+        return BAD_REQUEST("Invalid chat id : Must be integer")  # 400
+
+    user_id = require(req.GET, 'user_id', 'int', req=req)
+    later_than = require(req.GET, 'later_than', 'float', is_essential=False, req=req)
+
+    if later_than is None:
+        later_than = 0
+
+    # user check
+    if not User.objects.filter(user_id=user_id).exists():
+        return NOT_FOUND(NOT_FOUND_USER_ID)  # 404
+
+    # chat check
+    if not Chat.objects.filter(chat_id=chat_id).exists():
+        return NOT_FOUND(NOT_FOUND_CHAT_ID)
+
+    user = User.objects.get(user_id=user_id)
+    chat = Chat.objects.get(chat_id=chat_id)
+    verify_a_user(salt=user.jwt_token_salt, user_id=user_id, req=req)
+
+    # membership check
+    if not Membership.objects.filter(chat_id=chat_id, user_id=user_id, is_approved=True).exists():
+        return UNAUTHORIZED(f"Unauthorized : user {user_id} not in chat {chat_id}")
+
+    messages = chat.get_messages(timestamp=later_than, user_id=user_id)
+
+    return request_success({
+        "messages": [
+            return_field(
+                message.serialize(),
+                [
+                    "msg_id",
+                    "sender_id",
+                    "chat_id",
+
+                    "msg_text",
+                    "msg_type",
+
+                    "create_time",
+                    "update_time",
+
+                    "read_users",
+
+                    "reply_to",
+                    "is_system",
+                    "msg_file_url"]
+            ) for message in messages
+        ]
+    })
