@@ -46,7 +46,7 @@ class User(models.Model):
         return self.user_membership.filter(is_approved=True)
 
     def get_friends(self) -> models.QuerySet:
-        return self.user_friendship.filter(is_approved=True).values('friend')
+        return self.user_friendship.filter(is_approved=True).values('friend', 'group')
 
     def get_chats(self) -> models.QuerySet:
         return self.get_memberships().values('chat')
@@ -84,6 +84,7 @@ class Friendship(models.Model):
     """
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_friendship')
     friend = models.ForeignKey(User, on_delete=models.CASCADE, related_name='friend_friendship')
+    group = models.CharField(max_length=MAX_NAME_LENGTH, default="ungrouped")
     update_time = models.FloatField(default=get_timestamp)
     is_approved = models.BooleanField(default=False)
 
