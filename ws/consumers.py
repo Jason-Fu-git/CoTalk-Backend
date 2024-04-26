@@ -17,21 +17,19 @@ class WSConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         print("hello there!")
         try:
-            # 解析 URL 查询参数
-            query_params = urllib.parse.parse_qs(self.scope['query_string'].decode('utf-8'))
 
             # 获取 'auth' 参数的值
-            jwt_token = query_params.get('Authorization', [''])[0]
+            # jwt_token = query_params.get('Authorization', [''])[0]
 
             # 获取 'user_id' 的值
-            user_id = int(query_params.get('user_id', [''])[0])
+            user_id = int(self.scope['url_route']['kwargs']['user_id'])
 
             self.user: User = await self.get_user(user_id=user_id)
 
             exists = await self.client_exists(user_id=user_id)
 
             # 检查用户身份
-            verify_a_user(salt=self.user.jwt_token_salt, user_id=user_id, req=None, token=jwt_token)
+            # verify_a_user(salt=self.user.jwt_token_salt, user_id=user_id, req=None, token=jwt_token)
 
             # 如果不存在连接，则建立
             if not exists:
