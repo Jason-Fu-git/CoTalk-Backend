@@ -17,7 +17,7 @@ class WSConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         print("hello there!")
         try:
-
+            print(self.scope)
             # 获取 'auth' 参数的值
             jwt_token = self.scope['url_route']['kwargs']['token']
 
