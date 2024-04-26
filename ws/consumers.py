@@ -15,62 +15,64 @@ from django.utils import timezone
 class WSConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
-        try:
-            # 解析 URL 查询参数
-            query_params = urllib.parse.parse_qs(self.scope['query_string'].decode('utf-8'))
-
-            # 获取 'auth' 参数的值
-            jwt_token = query_params.get('Authorization', [''])[0]
-
-            # 获取 'user_id' 的值
-            user_id = int(query_params.get('user_id', [''])[0])
-
-            self.user: User = await self.get_user(user_id=user_id)
-
-            exists = await self.client_exists(user_id=user_id)
-
-            # 检查用户身份
-            verify_a_user(salt=self.user.jwt_token_salt, user_id=user_id, req=None, token=jwt_token)
-
-            # 如果不存在连接，则建立
-            if not exists:
-                print(f'Channel {self.channel_name} connected, user id: {user_id}')
-                # 从数据库中提取群聊
-                chat_ids = await self.get_chat_ids(user=self.user)
-                if chat_ids is not None:
-                    # 加入群组
-                    for chat_id in chat_ids:
-                        await self.channel_layer.group_add(
-                            f'chat_{chat_id}',
-                            self.channel_name)
-
-                await self.accept()
-                await self.create_client(user_id=user_id)
-            else:
-                # 否则，关闭连接
-                print('User already connected')
-                await self.close()
-
-        except Exception as e:
-            if isinstance(e, ValueError) and str(e).startswith('Unauthorized'):
-                print('Authentication failed')
-            print(f'Error: {str(e)}')
-            await self.close()
+        await self.accept()
+        # try:
+        #     # 解析 URL 查询参数
+        #     query_params = urllib.parse.parse_qs(self.scope['query_string'].decode('utf-8'))
+        #
+        #     # 获取 'auth' 参数的值
+        #     jwt_token = query_params.get('Authorization', [''])[0]
+        #
+        #     # 获取 'user_id' 的值
+        #     user_id = int(query_params.get('user_id', [''])[0])
+        #
+        #     self.user: User = await self.get_user(user_id=user_id)
+        #
+        #     exists = await self.client_exists(user_id=user_id)
+        #
+        #     # 检查用户身份
+        #     verify_a_user(salt=self.user.jwt_token_salt, user_id=user_id, req=None, token=jwt_token)
+        #
+        #     # 如果不存在连接，则建立
+        #     if not exists:
+        #         print(f'Channel {self.channel_name} connected, user id: {user_id}')
+        #         # 从数据库中提取群聊
+        #         chat_ids = await self.get_chat_ids(user=self.user)
+        #         if chat_ids is not None:
+        #             # 加入群组
+        #             for chat_id in chat_ids:
+        #                 await self.channel_layer.group_add(
+        #                     f'chat_{chat_id}',
+        #                     self.channel_name)
+        #
+        #         await self.accept()
+        #         await self.create_client(user_id=user_id)
+        #     else:
+        #         # 否则，关闭连接
+        #         print('User already connected')
+        #         await self.close()
+        #
+        # except Exception as e:
+        #     if isinstance(e, ValueError) and str(e).startswith('Unauthorized'):
+        #         print('Authentication failed')
+        #     print(f'Error: {str(e)}')
+        #     await self.close()
 
     async def disconnect(self, close_code):
-        try:
-            # 从数据库中提取群聊
-            chat_ids = await self.get_chat_ids(user=self.user)
-            # 退出群组
-            if chat_ids is not None:
-                for chat_id in chat_ids:
-                    await self.channel_layer.group_discard(
-                        f'chat_{chat_id}',
-                        self.channel_name)
-            await self.delete_client()
-            print(f'Channel {self.channel_name} disconnected, user_id:{self.user.user_id}')
-        except Exception as e:
-            print(e)
+        pass
+        # try:
+        #     # 从数据库中提取群聊
+        #     chat_ids = await self.get_chat_ids(user=self.user)
+        #     # 退出群组
+        #     if chat_ids is not None:
+        #         for chat_id in chat_ids:
+        #             await self.channel_layer.group_discard(
+        #                 f'chat_{chat_id}',
+        #                 self.channel_name)
+        #     await self.delete_client()
+        #     print(f'Channel {self.channel_name} disconnected, user_id:{self.user.user_id}')
+        # except Exception as e:
+        #     print(e)
 
     # === 后端client之间通信处理 ===
     async def user_friend_request(self, event):
