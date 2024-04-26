@@ -15,15 +15,14 @@ from django.utils import timezone
 class WSConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
+        print("hello there!")
         try:
-            # 解析 URL 查询参数
-            query_params = urllib.parse.parse_qs(self.scope['query_string'].decode('utf-8'))
-
+            print(self.scope)
             # 获取 'auth' 参数的值
-            jwt_token = query_params.get('Authorization', [''])[0]
+            jwt_token = self.scope['url_route']['kwargs']['token']
 
             # 获取 'user_id' 的值
-            user_id = int(query_params.get('user_id', [''])[0])
+            user_id = int(self.scope['url_route']['kwargs']['user_id'])
 
             self.user: User = await self.get_user(user_id=user_id)
 
