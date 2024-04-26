@@ -19,7 +19,7 @@ class WSConsumer(AsyncWebsocketConsumer):
         try:
 
             # 获取 'auth' 参数的值
-            # jwt_token = query_params.get('Authorization', [''])[0]
+            jwt_token = self.scope['url_route']['kwargs']['token']
 
             # 获取 'user_id' 的值
             user_id = int(self.scope['url_route']['kwargs']['user_id'])
@@ -29,7 +29,7 @@ class WSConsumer(AsyncWebsocketConsumer):
             exists = await self.client_exists(user_id=user_id)
 
             # 检查用户身份
-            # verify_a_user(salt=self.user.jwt_token_salt, user_id=user_id, req=None, token=jwt_token)
+            verify_a_user(salt=self.user.jwt_token_salt, user_id=user_id, req=None, token=jwt_token)
 
             # 如果不存在连接，则建立
             if not exists:
