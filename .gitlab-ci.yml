@@ -29,6 +29,7 @@ unit-test:
     - python manage.py makemigrations message
     - python manage.py makemigrations ws
     - python manage.py migrate
+    - mkdir assets
     - mkdir assets/message
     - chmod +x test.sh
     - ./test.sh
