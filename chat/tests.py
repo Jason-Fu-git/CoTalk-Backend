@@ -553,7 +553,7 @@ class ChatTestCase(TestCase):
                                msg_text='Message #1', msg_type='T', create_time=1000, update_time=1000)
 
         Message.objects.create(sender_id=self.plato.user_id, chat_id=self.athens.chat_id,
-                               msg_text='Message #2', msg_type='T', create_time=2000, update_time=2000)
+                               msg_text='Message 2', msg_type='T', create_time=2000, update_time=2000)
 
         Message.objects.create(sender_id=self.socrates.user_id, chat_id=self.athens.chat_id,
                                msg_text='Message #3', msg_type='T', create_time=3000, update_time=3000)
@@ -561,7 +561,7 @@ class ChatTestCase(TestCase):
         response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
                                    data={
                                        'user_id': self.socrates.user_id,
-                                       'later_than': 2500,
+                                       'filter_after': 2500,
                                    }, HTTP_AUTHORIZATION=socrates_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['messages'][0]['msg_text'], 'Message #3')
@@ -569,10 +569,11 @@ class ChatTestCase(TestCase):
         response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
                                    data={
                                        'user_id': self.plato.user_id,
-                                       'later_than': 1500,
+                                       'filter_before': 1500,
+                                       'filter_user': self.socrates.user_id
                                    }, HTTP_AUTHORIZATION=plato_token)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()['messages']), 2)
+        self.assertEqual(len(response.json()['messages']), 1)
 
         response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
                                    data={
@@ -580,6 +581,14 @@ class ChatTestCase(TestCase):
                                    }, HTTP_AUTHORIZATION=plato_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()['messages']), 3)
+
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
+                                   data={
+                                       'user_id': self.plato.user_id,
+                                       'filter_text': 'Message #'
+                                   }, HTTP_AUTHORIZATION=plato_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['messages']), 2)
 
     def test_get_message_list_bad_request(self):
         plato_token = self.client.post('/api/user/login',

@@ -589,8 +589,8 @@ class MessageTestCase(TestCase):
         self.assertEqual(response.status_code, 401)
 
         # plato can see it, while socrates cannot
-        plato_messages = self.athens.get_messages(timestamp=0, user_id=self.plato.user_id)
-        socrates_messages = self.athens.get_messages(timestamp=0, user_id=self.socrates.user_id)
+        plato_messages = self.athens.get_messages(unable_to_see_user_id=self.plato.user_id)
+        socrates_messages = self.athens.get_messages(unable_to_see_user_id=self.socrates.user_id)
 
         self.assertEqual(len(plato_messages), 1)
         self.assertEqual(len(socrates_messages), 0)

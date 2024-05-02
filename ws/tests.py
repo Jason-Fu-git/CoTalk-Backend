@@ -50,7 +50,8 @@ class WSTests(TestCase):
         token = admin_response.json()['token']
         admin_id = admin_response.json()['user_id']
         communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                             f'/ws/?Authorization={token}&user_id={admin_id}')
+                                             f'/ws/main/{admin_id}/{token}')
+        communicator.scope['url_route'] = {'kwargs': {'user_id': admin_id, 'token': token}}
         connected, _ = await communicator.connect()
         self.assertTrue(connected)
         await communicator.disconnect()
@@ -72,19 +73,22 @@ class WSTests(TestCase):
         await communicator1.disconnect()
         # wrong query string
         communicator2 = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                              f'/ws/?user_id=123456789')
+                                              f'/ws/main/12345213')
+        communicator2.scope['url_route'] = {'kwargs': {'user_id': 1231232}}
         connected, _ = await communicator2.connect()
         self.assertFalse(connected)
         await communicator2.disconnect()
 
         communicator3 = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                              f'/ws/?Authorization={admin_token}')
+                                              f'/ws/main/{admin_token}')
+        communicator3.scope['url_route'] = {'kwargs': {'token': admin_token}}
         connected, _ = await communicator3.connect()
         self.assertFalse(connected)
         await communicator3.disconnect()
         # wrong token
         communicator4 = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                              f'/ws/?user_id={guest_id}&Authorization={admin_token}')
+                                              f'/ws/main/{guest_id}/{admin_token}')
+        communicator4.scope['url_route'] = {'kwargs': {'user_id': guest_id, 'token': admin_token}}
         connected, _ = await communicator4.connect()
         self.assertFalse(connected)
         await communicator4.disconnect()
@@ -96,12 +100,14 @@ class WSTests(TestCase):
         token = admin_response.json()['token']
         admin_id = admin_response.json()['user_id']
         communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                             f'/ws/?Authorization={token}&user_id={admin_id}')
+                                             f'/ws/main/{admin_id}/{token}')
+        communicator.scope['url_route'] = {'kwargs': {'user_id': admin_id, 'token': token}}
         connected1, _ = await communicator.connect()
         self.assertTrue(connected1)
 
         communicator1 = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                              f'/ws/?Authorization={token}&user_id={admin_id}')
+                                              f'/ws/main/{admin_id}/{token}')
+        communicator1.scope['url_route'] = {'kwargs': {'user_id': admin_id, 'token': token}}
         connected2, _ = await communicator1.connect()
         self.assertFalse(connected2)
 
@@ -109,7 +115,8 @@ class WSTests(TestCase):
         await communicator1.disconnect()
 
         communicator2 = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                              f'/ws/?Authorization={token}&user_id={admin_id}')
+                                              f'/ws/main/{admin_id}/{token}')
+        communicator2.scope['url_route'] = {'kwargs': {'user_id': admin_id, 'token': token}}
         connected3, _ = await communicator2.connect()
         # self.assertTrue(connected3)
         await communicator2.disconnect()
@@ -121,7 +128,8 @@ class WSTests(TestCase):
         admin_token = admin_response.json()['token']
         admin_id = admin_response.json()['user_id']
         admin_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                   f'/ws/?Authorization={admin_token}&user_id={admin_id}')
+                                                   f'/ws/main/{admin_id}/{admin_token}')
+        admin_communicator.scope['url_route'] = {'kwargs': {'user_id': admin_id, 'token': admin_token}}
         connected, _ = await admin_communicator.connect()
         self.assertTrue(connected)
 
@@ -132,7 +140,8 @@ class WSTests(TestCase):
         guest_id = guest_response.json()['user_id']
 
         guest_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                   f'/ws/?Authorization={guest_token}&user_id={guest_id}')
+                                                   f'/ws/main/{guest_id}/{guest_token}')
+        guest_communicator.scope['url_route'] = {'kwargs': {'user_id': guest_id, 'token': guest_token}}
         connected, _ = await guest_communicator.connect()
         self.assertTrue(connected)
 
@@ -248,17 +257,20 @@ class WSTests(TestCase):
         aristotle_id = aristotle_response.json()['user_id']
 
         socrates_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                      f'/ws/?Authorization={socrates_token}&user_id={socrates_id}')
+                                                      f'/ws/main/{socrates_id}/{socrates_token}')
+        socrates_communicator.scope['url_route'] = {'kwargs': {'user_id': socrates_id, 'token': socrates_token}}
         connected, _ = await socrates_communicator.connect()
         self.assertTrue(connected)
 
         aristotle_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                       f'/ws/?Authorization={aristotle_token}&user_id={aristotle_id}')
+                                                       f'/ws/main/{aristotle_id}/{aristotle_token}')
+        aristotle_communicator.scope['url_route'] = {'kwargs': {'user_id': aristotle_id, 'token': aristotle_token}}
         connected, _ = await aristotle_communicator.connect()
         self.assertTrue(connected)
 
         plato_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                   f'/ws/?Authorization={plato_token}&user_id={plato_id}')
+                                                   f'/ws/main/{plato_id}/{plato_token}')
+        plato_communicator.scope['url_route'] = {'kwargs': {'user_id': plato_id, 'token': plato_token}}
         connected, _ = await plato_communicator.connect()
         self.assertTrue(connected)
 
@@ -307,17 +319,20 @@ class WSTests(TestCase):
         aristotle_id = aristotle_response.json()['user_id']
 
         socrates_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                      f'/ws/?Authorization={socrates_token}&user_id={socrates_id}')
+                                                      f'/ws/main/{socrates_id}/{socrates_token}')
+        socrates_communicator.scope['url_route'] = {'kwargs': {'user_id': socrates_id, 'token': socrates_token}}
         connected, _ = await socrates_communicator.connect()
         self.assertTrue(connected)
 
         aristotle_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                       f'/ws/?Authorization={aristotle_token}&user_id={aristotle_id}')
+                                                       f'/ws/main/{aristotle_id}/{aristotle_token}')
+        aristotle_communicator.scope['url_route'] = {'kwargs': {'user_id': aristotle_id, 'token': aristotle_token}}
         connected, _ = await aristotle_communicator.connect()
         self.assertTrue(connected)
 
         plato_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                   f'/ws/?Authorization={plato_token}&user_id={plato_id}')
+                                                   f'/ws/main/{plato_id}/{plato_token}')
+        plato_communicator.scope['url_route'] = {'kwargs': {'user_id': plato_id, 'token': plato_token}}
         connected, _ = await plato_communicator.connect()
         self.assertTrue(connected)
 
@@ -384,17 +399,20 @@ class WSTests(TestCase):
         aristotle_id = aristotle_response.json()['user_id']
 
         socrates_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                      f'/ws/?Authorization={socrates_token}&user_id={socrates_id}')
+                                                      f'/ws/main/{socrates_id}/{socrates_token}')
+        socrates_communicator.scope['url_route'] = {'kwargs': {'user_id': socrates_id, 'token': socrates_token}}
         connected, _ = await socrates_communicator.connect()
         self.assertTrue(connected)
 
         aristotle_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                       f'/ws/?Authorization={aristotle_token}&user_id={aristotle_id}')
+                                                       f'/ws/main/{aristotle_id}/{aristotle_token}')
+        aristotle_communicator.scope['url_route'] = {'kwargs': {'user_id': aristotle_id, 'token': aristotle_token}}
         connected, _ = await aristotle_communicator.connect()
         self.assertTrue(connected)
 
         plato_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                   f'/ws/?Authorization={plato_token}&user_id={plato_id}')
+                                                   f'/ws/main/{plato_id}/{plato_token}')
+        plato_communicator.scope['url_route'] = {'kwargs': {'user_id': plato_id, 'token': plato_token}}
         connected, _ = await plato_communicator.connect()
         self.assertTrue(connected)
 
@@ -427,12 +445,14 @@ class WSTests(TestCase):
 
         # connect 2 communicators
         admin_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                   f'/ws/?Authorization={self.admin_token}&user_id={self.admin.user_id}')
+                                                   f'/ws/main/{self.admin.user_id}/&{self.admin_token}')
+        admin_communicator.scope['url_route'] = {'kwargs': {'user_id': self.admin.user_id, 'token': self.admin_token}}
         connected, _ = await admin_communicator.connect()
         self.assertTrue(connected)
 
         guest_communicator = WebsocketCommunicator(WSConsumer.as_asgi(),
-                                                   f'/ws/?Authorization={self.guest_token}&user_id={self.guest.user_id}')
+                                                   f'/ws/main/{self.guest.user_id}/&{self.guest_token}')
+        guest_communicator.scope['url_route'] = {'kwargs': {'user_id': self.guest.user_id, 'token': self.guest_token}}
         connected, _ = await guest_communicator.connect()
         self.assertTrue(connected)
 

@@ -334,10 +334,6 @@ def get_messages(req: HttpRequest, chat_id):
         return BAD_REQUEST("Invalid chat id : Must be integer")  # 400
 
     user_id = require(req.GET, 'user_id', 'int', req=req)
-    later_than = require(req.GET, 'later_than', 'float', is_essential=False, req=req)
-
-    if later_than is None:
-        later_than = 0
 
     # user check
     if not User.objects.filter(user_id=user_id).exists():
@@ -355,7 +351,33 @@ def get_messages(req: HttpRequest, chat_id):
     if not Membership.objects.filter(chat_id=chat_id, user_id=user_id, is_approved=True).exists():
         return UNAUTHORIZED(f"Unauthorized : user {user_id} not in chat {chat_id}")
 
-    messages = chat.get_messages(timestamp=later_than, user_id=user_id)
+    messages = chat.get_messages(unable_to_see_user_id=user_id)
+
+    # filter
+    filter_info = "Success"
+    filter_text = require(req.GET, 'filter_text', 'string', is_essential=False, req=req)
+
+    if filter_text is not None:
+        messages = messages.filter(msg_text__contains=filter_text)
+        filter_info += ", filter_text: " + filter_text
+
+    filter_user = require(req.GET, 'filter_user', 'int', is_essential=False, req=req)
+
+    if filter_user is not None:
+        messages = messages.filter(sender_id=filter_user)
+        filter_info += ", filter_user: " + str(filter_user)
+
+    filter_before = require(req.GET, 'filter_before', 'float', is_essential=False, req=req)
+
+    if filter_before is not None:
+        messages = messages.filter(create_time__lt=filter_before)
+        filter_info += ", filter_before: " + str(filter_before)
+
+    filter_after = require(req.GET, 'filter_after', 'float', is_essential=False, req=req)
+
+    if filter_after is not None:
+        messages = messages.filter(create_time__gt=filter_after)
+        filter_info += ", filter_after: " + str(filter_after)
 
     return request_success({
         "messages": [
@@ -379,4 +401,4 @@ def get_messages(req: HttpRequest, chat_id):
                     "msg_file_url"]
             ) for message in messages
         ]
-    })
+    }, info=filter_info)
