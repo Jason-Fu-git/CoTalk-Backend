@@ -15,15 +15,16 @@ def request_failed(code, info, status_code=400):
     }, status=status_code)
 
 
-def request_success(data={}):
+def request_success(data={}, info='Success'):
     """
     请求成功响应
     :param data: 响应数据
+    :param info: 响应信息
     :return: JsonResponse
     """
     return JsonResponse({
         "code": 0,
-        "info": "Success",
+        "info": info,
         **data
     })
 
