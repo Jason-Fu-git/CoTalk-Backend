@@ -61,8 +61,8 @@ def create_a_chat(req: HttpRequest):
                     notification_dict
                 )
             # 静态notification
-            else:
-                Notification.objects.create(sender_id=user_id, receiver_id=member, content=str(notification_dict))
+            # else:
+            Notification.objects.create(sender_id=user_id, receiver_id=member, content=str(notification_dict))
 
     return request_success({
         "chat_id": chat.chat_id,
@@ -215,15 +215,16 @@ def chat_members(req: HttpRequest, chat_id):
             }
 
         if notification_dict is not None:
-            if channel_name is None:
-                # 静态Notification
-                Notification.objects.create(sender_id=user_id, receiver_id=member_id, content=str(notification_dict))
-            else:
+            if channel_name is not None:
                 # 动态websocket
                 async_to_sync(get_channel_layer().send)(
                     channel_name,
                     notification_dict
                 )
+            # else:
+            # 静态Notification
+            Notification.objects.create(sender_id=user_id, receiver_id=member_id, content=str(notification_dict))
+
         return request_success()
 
 
@@ -315,10 +316,10 @@ def chat_management(req: HttpRequest, chat_id):
             channel_name,
             notification_dict
         )
-    else:
-        Notification.objects.create(sender_id=user_id,
-                                    receiver_id=member_id,
-                                    content=str(notification_dict))
+    # else:
+    Notification.objects.create(sender_id=user_id,
+                                receiver_id=member_id,
+                                content=str(notification_dict))
 
     return request_success()
 

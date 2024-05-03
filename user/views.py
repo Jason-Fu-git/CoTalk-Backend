@@ -317,12 +317,13 @@ def friend_management(req: HttpRequest, user_id):
                 channel_name,
                 notification_dict
             )
-        else:  # 静态 notification
-            Notification.objects.create(
-                sender_id=user_id,
-                receiver_id=friend_id,
-                content=str(notification_dict)
-            )
+        # else:
+        # 静态 notification
+        Notification.objects.create(
+            sender_id=user_id,
+            receiver_id=friend_id,
+            content=str(notification_dict)
+        )
         return request_success()
 
 
