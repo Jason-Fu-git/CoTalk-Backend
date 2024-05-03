@@ -539,6 +539,39 @@ class ChatTestCase(TestCase):
                                    content_type='application/json')
         self.assertEqual(response.status_code, 404)
 
+    # === group notice ===
+    def test_group_notice_success(self):
+        socrates_token = self.client.post('/api/user/login',
+                                          data={'user_name': 'socrates', 'password': 'socrates_pwd'},
+                                          content_type='application/json').json()['token']
+
+        plato_token = self.client.post('/api/user/login',
+                                       data={'user_name': 'plato', 'password': 'plato_pwd'},
+                                       content_type='application/json').json()['token']
+
+        Message.objects.create(sender_id=self.socrates.user_id, chat_id=self.athens.chat_id,
+                               msg_text='Group notice #1', msg_type='G', create_time=1000, update_time=1000)
+        Message.objects.create(sender_id=self.plato.user_id, chat_id=self.athens.chat_id,
+                               msg_text='Group notice 2', msg_type='G', create_time=2000, update_time=2000)
+
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
+                                   data={
+                                       'user_id': self.socrates.user_id,
+                                       'filter_type': 'text',
+                                   }, HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['messages']), 0)
+
+        response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
+                                   data={
+                                       'user_id': self.socrates.user_id,
+                                       'filter_type': 'group_notice',
+                                   }, HTTP_AUTHORIZATION=socrates_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['messages']), 2)
+
+        print(response.json())
+
     # === get message list ===
     def test_get_message_list_success(self):
         socrates_token = self.client.post('/api/user/login',
