@@ -12,6 +12,7 @@ from .models import Message, withdraw_a_message
 from chat.models import Chat, Membership
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from utils.utils_require import msg_type_translation
 
 
 @CheckError
@@ -159,6 +160,7 @@ def post_message(req: HttpRequest):
     # membership check
     if not Membership.objects.filter(chat_id=chat_id, user_id=user_id, is_approved=True).exists():
         return UNAUTHORIZED(f"Unauthorized : user {user_id} not in chat {chat_id}")
+    membership = Membership.objects.get(chat_id=chat_id, user_id=user_id, is_approved=True)
 
     # verification
 
@@ -179,11 +181,20 @@ def post_message(req: HttpRequest):
     # check msg_type
     if msg_type == 'text':
         message = Message.objects.create(sender_id=user_id, chat_id=chat_id, msg_text=msg_text, msg_type='T')
-
-    else:
+    elif msg_type == 'group_notice':
+        # check privilege
+        if membership.privilege == 'A' or membership.privilege == 'O':
+            message = Message.objects.create(sender_id=user_id, chat_id=chat_id, msg_text=msg_text, msg_type='G')
+        else:
+            return UNAUTHORIZED("Unauthorized : the user is neither the owner nor the admin of the chat")
+    elif msg_type == 'image' or msg_type == 'audio' or msg_type == 'video' or msg_type == 'others':
         msg_file = require(req.FILES, 'msg_file', msg_type)
-        message = Message.objects.create(sender_id=user_id, chat_id=chat_id, msg_text=msg_text, msg_type=msg_type,
+        message = Message.objects.create(sender_id=user_id, chat_id=chat_id, msg_text=msg_text,
+                                         msg_type=msg_type_translation[msg_type],
                                          msg_file=msg_file)
+    else:
+        return BAD_REQUEST(
+            "Invalid msg_type : msg_type not in ['text', 'group_notice', 'image', 'audio', 'video', 'others']")
 
     if reply_to is not None:
         message.reply_to = reply_to.msg_id
