@@ -18,6 +18,11 @@ NOT_FOUND_MESSAGE_ID = "Invalid message id : message not found"
 UNAUTHORIZED_JWT = "Unauthorized : JWT token is missing or invalid"
 NO_MANAGEMENT_PRIVILEGE = 'No management privilege'
 
+# 字典
+
+msg_type_translation = {"text": "T", "image": "I", "audio": "A", "video": "V", "group_notice": "G",
+                        "others": "O"}
+
 # 文件格式
 IMAGE_DICT = {
     'jpg': 'image/jpeg',

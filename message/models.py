@@ -13,7 +13,7 @@ class Message(models.Model):
     :var chat: 所属聊天（主要隶属关系）
     :var msg_text: 消息内容
     :var msg_file: （如果`msg_type`不是text的话）消息文件
-    :var msg_type: 消息类型（从 'text', 'image', 'audio', 'video', 'others' 大写首字母中选择）
+    :var msg_type: 消息类型（从 'text', 'group_notice', 'image', 'audio', 'video', 'others' 大写首字母中选择）
     :var create_time: 消息创建时间
     :var update_time: 消息状态更新时间
     :var read_users: 已经读取消息的用户
@@ -28,7 +28,7 @@ class Message(models.Model):
 
     msg_text = models.CharField(max_length=MAX_MESSAGE_LENGTH)
     msg_file = models.FileField(upload_to=f'assets/message/', blank=True)
-    msg_type = models.CharField(max_length=10, choices=(('T', 'text'),
+    msg_type = models.CharField(max_length=10, choices=(('T', 'text'), ('G', 'group_notice'),
                                                         ('I', 'image'), ('A', 'audio'), ('V', 'video'),
                                                         ('O', 'others')), default='T')
     create_time = models.FloatField(default=get_timestamp)
