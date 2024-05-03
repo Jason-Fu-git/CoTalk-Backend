@@ -11,6 +11,7 @@ from message.models import Message, Notification, kick_a_person, join_a_chat, ch
 from ws.models import Client
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from utils.utils_require import msg_type_translation
 
 
 @CheckError
@@ -379,6 +380,12 @@ def get_messages(req: HttpRequest, chat_id):
     if filter_after is not None:
         messages = messages.filter(create_time__gt=filter_after)
         filter_info += ", filter_after: " + str(filter_after)
+
+    filter_type = require(req.GET, 'filter_type', 'string', is_essential=False, req=req)
+
+    if filter_type is not None:
+        messages = messages.filter(msg_type=msg_type_translation[filter_type])
+        filter_info += ", filter_type: " + filter_type
 
     return request_success({
         "messages": [

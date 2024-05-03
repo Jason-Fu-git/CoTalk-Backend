@@ -53,6 +53,9 @@ class MessageTestCase(TestCase):
         self.admin_token = self.client.post('/api/user/login',
                                             data={'user_name': 'admin', 'password': 'admin_pwd'},
                                             content_type='application/json').json()['token']
+        self.aristotle_token = self.client.post('/api/user/login',
+                                                data={'user_name': 'aristotle', 'password': 'aristotle_pwd'},
+                                                content_type='application/json').json()['token']
 
     def tearDown(self):
         for filename in os.listdir('assets/message'):
@@ -78,6 +81,32 @@ class MessageTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         message = Message.objects.get(msg_id=response.json()['msg_id'])
         self.assertEqual(message.msg_text, 'Hello World!')
+
+        # group notice posted by owner
+        response = self.client.post('/api/message/send',
+                                    data={
+                                        'user_id': self.socrates.user_id,
+                                        'chat_id': self.athens.chat_id,
+                                        'msg_text': '#GroupNotice# Hello World!',
+                                        'msg_type': 'group_notice',
+                                    }, format='multipart', HTTP_AUTHORIZATION=self.socrates_token)
+        self.assertEqual(response.status_code, 200)
+        message = Message.objects.get(msg_id=response.json()['msg_id'])
+        self.assertEqual(message.msg_text, '#GroupNotice# Hello World!')
+        self.assertEqual(message.msg_type, 'G')
+
+        # group notice posted by admin
+        response = self.client.post('/api/message/send',
+                                    data={
+                                        'user_id': self.plato.user_id,
+                                        'chat_id': self.athens.chat_id,
+                                        'msg_text': '#GroupNotice# Hello Athens!',
+                                        'msg_type': 'group_notice',
+                                    }, format='multipart', HTTP_AUTHORIZATION=self.plato_token)
+        self.assertEqual(response.status_code, 200)
+        message = Message.objects.get(msg_id=response.json()['msg_id'])
+        self.assertEqual(message.msg_text, '#GroupNotice# Hello Athens!')
+        self.assertEqual(message.msg_type, 'G')
 
         # image
         with open('test_files/imagefile.png', 'rb') as f:
@@ -375,6 +404,18 @@ class MessageTestCase(TestCase):
                                     }, format='multipart', HTTP_AUTHORIZATION=self.plato_token)
 
         self.assertEqual(response.status_code, 401)
+
+        response = self.client.post('/api/message/send',
+                                    data={
+                                        'user_id': self.aristotle.user_id,
+                                        'chat_id': self.athens.chat_id,
+                                        'msg_text': 'Hello World!',
+                                        'msg_type': 'group_notice',
+                                    }, format='multipart', HTTP_AUTHORIZATION=self.aristotle_token)
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()['info'],
+                         'Unauthorized : the user is neither the owner nor the admin of the chat')
 
         response = self.client.post('/api/message/send',
                                     data={
