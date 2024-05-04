@@ -248,7 +248,7 @@ def friend_management(req: HttpRequest, user_id):
         baFriendship = Friendship.objects.filter(user_id=friend_id, friend__user_id=user_id)
 
         # 通知
-        notification_dict = {}
+        notification_dict = None
 
         if baFriendship.exists():
             if abFriendship.exists():
@@ -280,7 +280,7 @@ def friend_management(req: HttpRequest, user_id):
                         'user_id': user_id,
                         'is_approved': approve,
                     }
-                    # 更改分组
+                    # 设置分组
                     if group is not None:
                         abFriendship.group = group
                         abFriendship.save()
@@ -306,24 +306,25 @@ def friend_management(req: HttpRequest, user_id):
                 'user_id': user_id,
                 'is_approved': approve,
             }
-            # 更改分组
+            # 设置分组
             if group is not None:
                 abFriendship.group = group
                 abFriendship.save()
 
-        # 执行通知
-        if channel_name is not None:  # websocket 通知
-            async_to_sync(get_channel_layer().send)(
-                channel_name,
-                notification_dict
+        if notification_dict is not None:
+            # 执行通知
+            if channel_name is not None:  # websocket 通知
+                async_to_sync(get_channel_layer().send)(
+                    channel_name,
+                    notification_dict
+                )
+            # else:
+            # 静态 notification
+            Notification.objects.create(
+                sender_id=user_id,
+                receiver_id=friend_id,
+                content=str(notification_dict)
             )
-        # else:
-        # 静态 notification
-        Notification.objects.create(
-            sender_id=user_id,
-            receiver_id=friend_id,
-            content=str(notification_dict)
-        )
         return request_success()
 
 
