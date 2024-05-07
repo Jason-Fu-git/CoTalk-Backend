@@ -3,6 +3,12 @@ from user.models import User
 from chat.models import Chat, Membership
 from message.models import Notification, Message
 from django.contrib.auth.hashers import make_password
+import base64
+from utils.utils_security import encrypt_rsa, dencrypt_rsa, DEFAULT_PRV_KEY
+
+
+def base64_encrypt(public_key, data):
+    return base64.b64encode(encrypt_rsa(public_key, data)).decode('utf-8')
 
 
 class ChatTestCase(TestCase):
@@ -36,11 +42,23 @@ class ChatTestCase(TestCase):
                                                 is_approved=True, privilege='A')
         membership2.save()
 
+        response = self.client.get('/api/user/rsa')
+        self.assertEqual(response.status_code, 200)
+        self.public_key = response.json()['public_key'].encode('utf-8')
+
+    def login(self, user_name, password):
+        body = {}
+        if user_name is not None:
+            body['user_name'] = user_name
+
+        if password is not None:
+            body['password'] = base64_encrypt(self.public_key, password)
+
+        return self.client.post('/api/user/login', data=body, content_type='application/json')
+
     # === create chat ===
     def test_create_chat_success(self):
-        socrates_response = self.client.post('/api/user/login',
-                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                             content_type='application/json')
+        socrates_response = self.login('socrates', 'socrates_pwd')
         socrates_token = socrates_response.json()['token']
         response = self.client.post('/api/chat/create', data={'user_id': self.socrates.user_id,
                                                               'chat_name': 'Test',
@@ -57,9 +75,7 @@ class ChatTestCase(TestCase):
         self.assertEqual(eval(plato_notification.content)['status'], 'make invitation')
         self.assertEqual(eval(plato_notification.content)['user_id'], self.socrates.user_id)
 
-        plato_response = self.client.post('/api/user/login',
-                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
-                                          content_type='application/json')
+        plato_response = self.login('plato', 'plato_pwd')
         plato_token = plato_response.json()['token']
 
         # accept
@@ -79,9 +95,7 @@ class ChatTestCase(TestCase):
         self.assertEqual(len(response.json()['members']), 2)
 
     def test_create_chat_conflict(self):
-        socrates_response = self.client.post('/api/user/login',
-                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                             content_type='application/json')
+        socrates_response = self.login('socrates', 'socrates_pwd')
         socrates_token = socrates_response.json()['token']
         response = self.client.post('/api/chat/create', data={'user_id': self.socrates.user_id,
                                                               'chat_name': 'Athens'}
@@ -89,9 +103,7 @@ class ChatTestCase(TestCase):
         self.assertEqual(response.status_code, 409)
 
     def test_create_chat_bad_method(self):
-        socrates_response = self.client.post('/api/user/login',
-                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                             content_type='application/json')
+        socrates_response = self.login('socrates', 'socrates_pwd')
         socrates_token = socrates_response.json()['token']
         response = self.client.delete('/api/chat/create', data={'user_id': self.socrates.user_id,
                                                                 'chat_name': 'Athens'}
@@ -107,9 +119,7 @@ class ChatTestCase(TestCase):
         self.assertEqual(response.status_code, 405)
 
     def test_create_chat_bad_request(self):
-        socrates_response = self.client.post('/api/user/login',
-                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                             content_type='application/json')
+        socrates_response = self.login('socrates', 'socrates_pwd')
         socrates_token = socrates_response.json()['token']
         response = self.client.post('/api/chat/create', data={'user_id': "hello",
                                                               'chat_name': 'Athens'}
@@ -122,19 +132,13 @@ class ChatTestCase(TestCase):
     # === chat request ===
 
     def test_chat_request_success(self):
-        socrates_response = self.client.post('/api/user/login',
-                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                             content_type='application/json')
+        socrates_response = self.login('socrates', 'socrates_pwd')
         socrates_token = socrates_response.json()['token']
 
-        plato_response = self.client.post('/api/user/login',
-                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
-                                          content_type='application/json')
+        plato_response = self.login('plato', 'plato_pwd')
         plato_token = plato_response.json()['token']
 
-        aristotle_response = self.client.post('/api/user/login',
-                                              data={'user_name': 'aristotle', 'password': 'aristotle_pwd'},
-                                              content_type='application/json')
+        aristotle_response = self.login('aristotle', 'aristotle_pwd')
         aristotle_token = aristotle_response.json()['token']
 
         # socrates sends a chat invitation to aristotle
@@ -199,9 +203,7 @@ class ChatTestCase(TestCase):
         self.assertEqual(len(self.athens.get_memberships()), 2)
 
     def test_member_list_success(self):
-        socrates_response = self.client.post('/api/user/login',
-                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                             content_type='application/json')
+        socrates_response = self.login('socrates', 'socrates_pwd')
         socrates_token = socrates_response.json()['token']
         response = self.client.get(f'/api/chat/{self.athens.chat_id}/members',
                                    data={'user_id': self.socrates.user_id},
@@ -211,9 +213,7 @@ class ChatTestCase(TestCase):
         self.assertEqual(len(members), 2)
 
     def test_chat_request_bad_request(self):
-        socrates_response = self.client.post('/api/user/login',
-                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                             content_type='application/json')
+        socrates_response = self.login('socrates', 'socrates_pwd')
         socrates_token = socrates_response.json()['token']
         response = self.client.get(f'/api/chat/{self.athens.chat_id}/members',
                                    data={'user_id': 'hello'},
@@ -230,9 +230,7 @@ class ChatTestCase(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_chat_request_bad_method(self):
-        socrates_response = self.client.post('/api/user/login',
-                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                             content_type='application/json')
+        socrates_response = self.login('socrates', 'socrates_pwd')
         socrates_token = socrates_response.json()['token']
         response = self.client.post(f'/api/chat/{self.athens.chat_id}/members',
                                     content_type='application/json', HTTP_AUTHORIZATION=socrates_token)
@@ -242,19 +240,13 @@ class ChatTestCase(TestCase):
         self.assertEqual(response.status_code, 405)
 
     def test_chat_request_not_found(self):
-        socrates_response = self.client.post('/api/user/login',
-                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                             content_type='application/json')
+        socrates_response = self.login('socrates', 'socrates_pwd')
         socrates_token = socrates_response.json()['token']
 
-        plato_response = self.client.post('/api/user/login',
-                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
-                                          content_type='application/json')
+        plato_response = self.login('plato', 'plato_pwd')
         plato_token = plato_response.json()['token']
 
-        aristotle_response = self.client.post('/api/user/login',
-                                              data={'user_name': 'aristotle', 'password': 'aristotle_pwd'},
-                                              content_type='application/json')
+        aristotle_response = self.login('aristotle', 'aristotle_pwd')
         aristotle_token = aristotle_response.json()['token']
 
         response = self.client.put(f'/api/chat/{100000}/members',
@@ -279,19 +271,13 @@ class ChatTestCase(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_chat_request_no_privilege(self):
-        socrates_response = self.client.post('/api/user/login',
-                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                             content_type='application/json')
+        socrates_response = self.login('socrates', 'socrates_pwd')
         socrates_token = socrates_response.json()['token']
 
-        plato_response = self.client.post('/api/user/login',
-                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
-                                          content_type='application/json')
+        plato_response = self.login('plato', 'plato_pwd')
         plato_token = plato_response.json()['token']
 
-        aristotle_response = self.client.post('/api/user/login',
-                                              data={'user_name': 'aristotle', 'password': 'aristotle_pwd'},
-                                              content_type='application/json')
+        aristotle_response = self.login('aristotle', 'aristotle_pwd')
         aristotle_token = aristotle_response.json()['token']
 
         Membership.objects.create(user=self.aristotle, chat=self.athens, is_approved=True, privilege='M')
@@ -314,14 +300,10 @@ class ChatTestCase(TestCase):
 
     # === member privilege ===
     def test_member_privilege_change_success(self):
-        socrates_response = self.client.post('/api/user/login',
-                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                             content_type='application/json')
+        socrates_response = self.login('socrates', 'socrates_pwd')
         socrates_token = socrates_response.json()['token']
 
-        plato_response = self.client.post('/api/user/login',
-                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
-                                          content_type='application/json')
+        plato_response = self.login('plato', 'plato_pwd')
         plato_token = plato_response.json()['token']
 
         # socrates attempts to change plato's privilege
@@ -354,14 +336,10 @@ class ChatTestCase(TestCase):
         self.assertEqual(Membership.objects.get(user_id=self.socrates.user_id).privilege, 'M')
 
     def test_chat_management_bad_method(self):
-        socrates_response = self.client.post('/api/user/login',
-                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                             content_type='application/json')
+        socrates_response = self.login('socrates', 'socrates_pwd')
         socrates_token = socrates_response.json()['token']
 
-        plato_response = self.client.post('/api/user/login',
-                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
-                                          content_type='application/json')
+        plato_response = self.login('plato', 'plato_pwd')
         plato_token = plato_response.json()['token']
 
         # socrates attempts to change plato's privilege
@@ -390,14 +368,10 @@ class ChatTestCase(TestCase):
         self.assertEqual(response.status_code, 405)
 
     def test_chat_management_bad_request(self):
-        socrates_response = self.client.post('/api/user/login',
-                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                             content_type='application/json')
+        socrates_response = self.login('socrates', 'socrates_pwd')
         socrates_token = socrates_response.json()['token']
 
-        plato_response = self.client.post('/api/user/login',
-                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
-                                          content_type='application/json')
+        plato_response = self.login('plato', 'plato_pwd')
         plato_token = plato_response.json()['token']
 
         # socrates attempts to change plato's privilege
@@ -433,14 +407,10 @@ class ChatTestCase(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_change_privilege_not_found(self):
-        socrates_response = self.client.post('/api/user/login',
-                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                             content_type='application/json')
+        socrates_response = self.login('socrates', 'socrates_pwd')
         socrates_token = socrates_response.json()['token']
 
-        plato_response = self.client.post('/api/user/login',
-                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
-                                          content_type='application/json')
+        plato_response = self.login('plato', 'plato_pwd')
         plato_token = plato_response.json()['token']
 
         # socrates attempts to change plato's privilege
@@ -469,19 +439,13 @@ class ChatTestCase(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_chat_management_no_privilege(self):
-        socrates_response = self.client.post('/api/user/login',
-                                             data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                             content_type='application/json')
+        socrates_response = self.login('socrates', 'socrates_pwd')
         socrates_token = socrates_response.json()['token']
 
-        plato_response = self.client.post('/api/user/login',
-                                          data={'user_name': 'plato', 'password': 'plato_pwd'},
-                                          content_type='application/json')
+        plato_response = self.login('plato', 'plato_pwd')
         plato_token = plato_response.json()['token']
 
-        aristotle_response = self.client.post('/api/user/login',
-                                              data={'user_name': 'aristotle', 'password': 'aristotle_pwd'},
-                                              content_type='application/json')
+        aristotle_response = self.login('aristotle', 'aristotle_pwd')
         aristotle_token = aristotle_response.json()['token']
 
         Membership.objects.create(user=self.aristotle, chat=self.athens, is_approved=True, privilege='M')
@@ -542,13 +506,9 @@ class ChatTestCase(TestCase):
 
     # === group notice ===
     def test_group_notice_success(self):
-        socrates_token = self.client.post('/api/user/login',
-                                          data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                          content_type='application/json').json()['token']
+        socrates_token = self.login('socrates', 'socrates_pwd').json()['token']
 
-        plato_token = self.client.post('/api/user/login',
-                                       data={'user_name': 'plato', 'password': 'plato_pwd'},
-                                       content_type='application/json').json()['token']
+        plato_token = self.login('plato', 'plato_pwd').json()['token']
 
         Message.objects.create(sender_id=self.socrates.user_id, chat_id=self.athens.chat_id,
                                msg_text='Group notice #1', msg_type='G', create_time=1000, update_time=1000)
@@ -575,13 +535,9 @@ class ChatTestCase(TestCase):
 
     # === get message list ===
     def test_get_message_list_success(self):
-        socrates_token = self.client.post('/api/user/login',
-                                          data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                          content_type='application/json').json()['token']
+        socrates_token = self.login('socrates', 'socrates_pwd').json()['token']
 
-        plato_token = self.client.post('/api/user/login',
-                                       data={'user_name': 'plato', 'password': 'plato_pwd'},
-                                       content_type='application/json').json()['token']
+        plato_token = self.login('plato', 'plato_pwd').json()['token']
 
         Message.objects.create(sender_id=self.socrates.user_id, chat_id=self.athens.chat_id,
                                msg_text='Message #1', msg_type='T', create_time=1000, update_time=1000)
@@ -625,9 +581,7 @@ class ChatTestCase(TestCase):
         self.assertEqual(len(response.json()['messages']), 2)
 
     def test_get_message_list_bad_request(self):
-        plato_token = self.client.post('/api/user/login',
-                                       data={'user_name': 'plato', 'password': 'plato_pwd'},
-                                       content_type='application/json').json()['token']
+        plato_token = self.login('plato', 'plato_pwd').json()['token']
 
         response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
                                    data={
@@ -647,9 +601,7 @@ class ChatTestCase(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_get_message_list_bad_method(self):
-        plato_token = self.client.post('/api/user/login',
-                                       data={'user_name': 'plato', 'password': 'plato_pwd'},
-                                       content_type='application/json').json()['token']
+        plato_token = self.login('plato', 'plato_pwd').json()['token']
 
         response = self.client.post(f'/api/chat/{self.athens.chat_id}/messages',
                                     data={
@@ -670,9 +622,7 @@ class ChatTestCase(TestCase):
         self.assertEqual(response.status_code, 405)
 
     def test_get_message_list_unauthorized(self):
-        aristotle_token = self.client.post('/api/user/login',
-                                           data={'user_name': 'aristotle', 'password': 'aristotle_pwd'},
-                                           content_type='application/json').json()['token']
+        aristotle_token = self.login('aristotle', 'aristotle_pwd').json()['token']
 
         response = self.client.get(f'/api/chat/{self.athens.chat_id}/messages',
                                    data={
@@ -687,9 +637,7 @@ class ChatTestCase(TestCase):
         self.assertEqual(response.status_code, 401)
 
     def test_get_message_list_not_found(self):
-        plato_token = self.client.post('/api/user/login',
-                                       data={'user_name': 'plato', 'password': 'plato_pwd'},
-                                       content_type='application/json').json()['token']
+        plato_token = self.login('plato', 'plato_pwd').json()['token']
 
         response = self.client.get(f'/api/chat/102909/messages',
                                    data={

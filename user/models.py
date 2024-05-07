@@ -4,6 +4,7 @@ from django.dispatch import receiver
 from imagekit.models import ProcessedImageField
 from imagekit.processors import ResizeToFit
 
+from utils.utils_security import RSA_KEY_LENGTH, DEFAULT_PUB_KEY, DEFAULT_PRV_KEY
 from utils.utils_time import get_timestamp
 from utils.utils_require import MAX_NAME_LENGTH, MAX_EMAIL_LENGTH, MAX_DESCRIPTION_LENGTH
 
@@ -17,10 +18,13 @@ class User(models.Model):
     :var user_name: 用户名
     :var password: 密码
     :var register_time: 注册时间
+    :var description: 用户描述
+    :var modify_time: 用户信息修改时间
     :var login_time: 登录时间
     :var user_email: 用户邮箱
     :var user_icon: 用户头像
     :var jwt_token_salt : 该用户的 jwt token 盐 (后端持有，前端不知)
+    :var verification_code: 验证码
     """
     user_id = models.BigAutoField(primary_key=True)
     user_name = models.CharField(max_length=MAX_NAME_LENGTH, unique=True)
@@ -39,6 +43,9 @@ class User(models.Model):
 
     jwt_token_salt = models.BinaryField(max_length=100, default=b'\x00' * 16)
     verification_code = models.CharField(max_length=6, blank=True)
+
+    public_key = models.BinaryField(max_length=RSA_KEY_LENGTH, default=DEFAULT_PUB_KEY)
+    private_key = models.BinaryField(max_length=RSA_KEY_LENGTH, default=DEFAULT_PRV_KEY)
 
     def serialize(self):
         return {

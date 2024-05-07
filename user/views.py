@@ -3,7 +3,8 @@ from utils.utils_require import (require, CheckError, MAX_DESCRIPTION_LENGTH, MA
 from django.http import HttpRequest, JsonResponse, FileResponse
 from utils.utils_request import (BAD_METHOD, request_success, request_failed, BAD_REQUEST,
                                  CONFLICT, SERVER_ERROR, NOT_FOUND, UNAUTHORIZED, PRECONDITION_FAILED, return_field)
-from utils.utils_security import generate_jwt_token, verify_a_user, generate_salt, generate_code
+from utils.utils_security import (generate_jwt_token, verify_a_user, generate_salt, generate_code,
+                                  DEFAULT_PUB_KEY, DEFAULT_PRV_KEY, encrypt_rsa, dencrypt_rsa, generate_rsa_pair)
 from utils.utils_time import get_timestamp
 import json
 import re
@@ -26,12 +27,18 @@ def register(req: HttpRequest):
         return BAD_METHOD  # 405
 
     user_name = require(req.POST, "user_name", "string", err_msg="Missing or error type of [user_name]", req=req)
-    password = require(req.POST, "password", "string", err_msg="Missing or error type of [password]", req=req)
+    password = require(req.POST, "password", "byte",
+                       err_msg="Missing or error type of [password], check whether it "
+                               "is encrypted and then converted to base64 string",
+                       req=req)
     user_email = require(req.POST, "user_email", "string", err_msg="Missing or error type of [user_email]",
                          is_essential=False, req=req)
     description = require(req.POST, "description", "string", err_msg="Missing or error type of [description]",
                           is_essential=False, req=req)
     avatar = require(req.FILES, "avatar", "image", err_msg="Missing or error type of [avatar]", is_essential=False)
+
+    # dencrypt the password
+    password = dencrypt_rsa(DEFAULT_PRV_KEY, password)
 
     # check validity of user_name , password, user_email and description
     if len(user_name) == 0 or len(user_name) > MAX_NAME_LENGTH:
@@ -63,10 +70,13 @@ def register(req: HttpRequest):
             user.user_icon = avatar
         if description is not None and len(description) > 0:
             user.description = description
+        # generate rsa keys
+        user.public_key, user.private_key = generate_rsa_pair()
         user.save()
 
         return request_success({
             "token": generate_jwt_token(salt=user.jwt_token_salt, user_id=user.user_id),
+            "public_key": user.public_key.decode('utf-8'),
             "user_id": user.user_id,
             "user_name": user.user_name,
             "user_email": user.user_email,
@@ -85,11 +95,15 @@ def login(req: HttpRequest):
 
     body = json.loads(req.body.decode("utf-8"))
     user_name = require(body, "user_name", "string", err_msg="Missing or error type of [user_name]")
-    password = require(body, "password", "string", err_msg="Missing or error type of [password]")
-    # todo : 后续添加2FA接口
+    password = require(body, "password", "byte",
+                       err_msg="Missing or error type of [password], check whether it "
+                               "is encrypted and then converted to base64 string", )
 
     if not User.objects.filter(user_name=user_name).exists():
         return NOT_FOUND("User Not Found")  # 404
+
+    # decode the password
+    password = dencrypt_rsa(DEFAULT_PRV_KEY, password)
 
     user = User.objects.get(user_name=user_name)
 
@@ -101,6 +115,7 @@ def login(req: HttpRequest):
     user.save()
     return request_success({
         "token": generate_jwt_token(salt=SALT, user_id=user.user_id),
+        'public_key': user.public_key.decode('utf-8'),
         "user_id": user.user_id,
         "user_name": user.user_name,
         "user_email": user.user_email,
@@ -156,11 +171,10 @@ def user_management(req: HttpRequest, user_id):
 
     verify_a_user(salt=SALT, user_id=user.user_id, req=req)
 
-    # todo : 添加2FA/密码验证
     # passed all security check, update user
     if req.method == "POST":
         user_name = require(req.POST, "user_name", 'string', is_essential=False, req=req)
-        password = require(req.POST, "password", 'string', is_essential=False, req=req)
+        password = require(req.POST, "password", 'byte', is_essential=False, req=req)
         user_email = require(req.POST, "user_email", 'string', is_essential=False, req=req)
         description = require(req.POST, "description", 'string', is_essential=False, req=req)
         avatar = require(req.FILES, "avatar", 'image', is_essential=False)
@@ -174,6 +188,8 @@ def user_management(req: HttpRequest, user_id):
             if len(user_name) > 0:
                 user.user_name = user_name
         if password is not None:
+            # decode the password
+            password = dencrypt_rsa(user.private_key, password)
             if len(password) == 0 or len(password) > MAX_NAME_LENGTH:
                 return BAD_REQUEST("Password length error")
             # check code
@@ -556,3 +572,15 @@ def user_verification(req: HttpRequest, user_id):
     user.save()
 
     return request_success()
+
+
+def default_rsa_key(req: HttpRequest):
+    """
+    获取默认的RSA公钥
+    """
+    if req.method != 'GET':
+        return BAD_METHOD  # 405
+
+    return request_success({
+        "public_key": DEFAULT_PUB_KEY.decode('utf-8')
+    })

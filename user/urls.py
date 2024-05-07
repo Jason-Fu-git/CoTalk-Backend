@@ -11,5 +11,6 @@ urlpatterns = [
     path('private/<user_id>/avatar', views.get_user_avatar),
     path('private/<user_id>/notifications', views.get_notification_list),
     path('private/<user_id>/notification/<notification_id>', views.notification_detail_or_delete_or_read),
-    path('private/<user_id>/verification', views.user_verification)
+    path('private/<user_id>/verification', views.user_verification),
+    path('rsa', views.default_rsa_key)
 ]

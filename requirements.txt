@@ -12,6 +12,7 @@ django-imagekit
 pillow
 uwsgi
 
+pycryptodome
 PyEmail
 
 pytest

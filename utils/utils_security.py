@@ -8,12 +8,47 @@ import random
 import secrets
 from typing import Optional
 from django.http import HttpRequest
-
-# c.f. https://thuse-course.github.io/course-index/basic/jwt/#jwt
-# !Important! Change this to your own salt, better randomly generated!"
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import PKCS1_OAEP
+from Crypto import Random
 
 EXPIRE_IN_SECONDS = 60 * 60 * 24 * 1  # 1 day
+RSA_KEY_LENGTH = 2048
 ALT_CHARS = "-_".encode("utf-8")
+
+
+def generate_rsa_pair():
+    """
+    Generate RSA key pair
+    :return: public_key, private_key
+    """
+    f = RSA.generate(RSA_KEY_LENGTH, Random.new().read)
+    private_key = f.export_key("PEM")
+    public_key = f.publickey().export_key("PEM")
+    return public_key, private_key
+
+
+DEFAULT_PUB_KEY, DEFAULT_PRV_KEY = generate_rsa_pair()
+
+
+def encrypt_rsa(public_key, data: str):
+    """
+    Encrypt data with RSA public key
+    :return: bytes
+    """
+    key = RSA.import_key(public_key)
+    cipher = PKCS1_OAEP.new(key)
+    return cipher.encrypt(data.encode("utf-8"))
+
+
+def dencrypt_rsa(private_key, data: bytes):
+    """
+    Decrypt data with RSA private key
+    :return: str
+    """
+    key = RSA.import_key(private_key)
+    cipher = PKCS1_OAEP.new(key)
+    return cipher.decrypt(data).decode("utf-8")
 
 
 def generate_code(length):
@@ -127,3 +162,12 @@ def verify_a_user(salt, user_id, req, token=None):
     if int(jwt_data["user_id"]) != int(user_id):
         print(f"User ID mismatch, expected {user_id}, got {jwt_data['user_id']}")
         raise ValueError("Unauthorized : User ID mismatch, Unauthorized")
+
+
+if __name__ == "__main__":
+    pub, prv = generate_rsa_pair()
+    data = "E=mc^2"
+    encrypted_data = encrypt_rsa(pub, data)
+    dencrypt_data = dencrypt_rsa(prv, encrypted_data)
+    print('encrypted_data:', encrypted_data)
+    print('dencrypt_data:', dencrypt_data)

@@ -5,6 +5,12 @@ from channels.db import database_sync_to_async
 from user.models import User
 from chat.models import Chat, Membership
 from django.contrib.auth.hashers import make_password
+import base64
+from utils.utils_security import encrypt_rsa
+
+
+def base64_encrypt(public_key, data):
+    return base64.b64encode(encrypt_rsa(public_key, data)).decode('utf-8')
 
 
 class WSTests(TestCase):
@@ -17,24 +23,26 @@ class WSTests(TestCase):
         Membership.objects.create(user=self.admin, chat=self.chat, privilege='O', is_approved=True)
         Membership.objects.create(user=self.guest, chat=self.chat, privilege='M', is_approved=True)
 
+        response = self.client.get('/api/user/rsa')
+        self.assertEqual(response.status_code, 200)
+        self.public_key = response.json()['public_key'].encode('utf-8')
+
         # login 2 users
-        response = self.client.post('/api/user/login', data={'user_name': 'admin', 'password': 'admin_pwd'},
-                                    content_type='application/json')
+        response = self.login('admin', 'admin_pwd')
         self.assertEqual(response.status_code, 200)
         self.admin_token = response.json()['token']
 
-        response = self.client.post('/api/user/login', data={'user_name': 'guest', 'password': 'guest_pwd'},
-                                    content_type='application/json')
+        response = self.login('guest', 'guest_pwd')
         self.assertEqual(response.status_code, 200)
         self.guest_token = response.json()['token']
 
-    def register(self, user_name, password, user_email=None, user_icon=None):
+    def register(self, user_name, password, user_email=None, user_icon=None, description=None):
         body = {}
         if user_name is not None:
             body['user_name'] = user_name
 
         if password is not None:
-            body['password'] = password
+            body['password'] = base64_encrypt(self.public_key, password)
 
         if user_email is not None:
             body['user_email'] = user_email
@@ -42,7 +50,20 @@ class WSTests(TestCase):
         if user_icon is not None:
             body['user_icon'] = user_icon
 
+        if description is not None:
+            body['description'] = description
+
         return self.client.post('/api/user/register', data=body, format='multipart')
+
+    def login(self, user_name, password):
+        body = {}
+        if user_name is not None:
+            body['user_name'] = user_name
+
+        if password is not None:
+            body['password'] = base64_encrypt(self.public_key, password)
+
+        return self.client.post('/api/user/login', data=body, content_type='application/json')
 
     async def test_ws_success(self):
         admin_response = await database_sync_to_async(self.register)(user_name='test_ws_success_admin',

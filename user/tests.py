@@ -1,11 +1,16 @@
 from django.test import TestCase
 from .models import User
-from utils.utils_security import generate_jwt_token
+from utils.utils_security import generate_jwt_token, DEFAULT_PRV_KEY, encrypt_rsa, dencrypt_rsa
 from utils.utils_time import get_timestamp
 from chat.models import Chat, Membership
 from message.models import Notification, Message
 from django.contrib.auth.hashers import make_password
+import base64
 import json
+
+
+def base64_encrypt(public_key, data):
+    return base64.b64encode(encrypt_rsa(public_key, data)).decode('utf-8')
 
 
 class UserTestCase(TestCase):
@@ -40,6 +45,10 @@ class UserTestCase(TestCase):
         )
         self.aristotle.save()
 
+        response = self.client.get('/api/user/rsa')
+        self.assertEqual(response.status_code, 200)
+        self.public_key = response.json()['public_key'].encode('utf-8')
+
     # ! Util section
     def register(self, user_name, password, user_email=None, user_icon=None, description=None):
         body = {}
@@ -47,7 +56,7 @@ class UserTestCase(TestCase):
             body['user_name'] = user_name
 
         if password is not None:
-            body['password'] = password
+            body['password'] = base64_encrypt(self.public_key, password)
 
         if user_email is not None:
             body['user_email'] = user_email
@@ -66,17 +75,18 @@ class UserTestCase(TestCase):
             body['user_name'] = user_name
 
         if password is not None:
-            body['password'] = password
+            body['password'] = base64_encrypt(self.public_key, password)
 
         return self.client.post('/api/user/login', data=body, content_type='application/json')
 
-    def update(self, user_id, token, user_name=None, password=None, user_email=None, user_icon=None, description=None):
+    def update(self, user_id, token, user_name=None, password=None, user_email=None,
+               user_icon=None, description=None, public_key=None):
         body = {}
         if user_name is not None:
             body['user_name'] = user_name
 
         if password is not None:
-            body['password'] = password
+            body['password'] = base64_encrypt(public_key, password)
 
         if user_email is not None:
             body['user_email'] = user_email
@@ -98,7 +108,6 @@ class UserTestCase(TestCase):
     # === register section ===
     def test_register_success(self):
         response = self.register(user_name='test_register', password='test')
-        print(response.json())
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['user_name'], 'test_register')
         response = self.register(user_name='test_register1', password='test', user_email='123@qq.com',
@@ -106,6 +115,8 @@ class UserTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['user_email'], '123@qq.com')
         self.assertEqual(response.json()['description'], "Hello world")
+        self.assertEqual(response.json()['public_key'],
+                         User.objects.get(user_name='test_register1').public_key.decode('utf-8'))
 
     def test_register_fail_duplicate_user_name(self):
         self.register(user_name='test_conflict', password='test_conflict')
@@ -247,10 +258,7 @@ class UserTestCase(TestCase):
                                password="""
             1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
             1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
-            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
-            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
-            1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
-            """)
+            """, public_key=login_admin.json()['public_key'].encode('utf-8'))
         self.assertEqual(response.status_code, 400)
         response = self.update(user_id=login_admin.json()['user_id'],
                                token=login_admin.json()['token'],

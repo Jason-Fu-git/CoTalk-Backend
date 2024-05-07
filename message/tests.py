@@ -5,6 +5,12 @@ from message.models import Message, Notification
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.auth.hashers import make_password
 import os
+import base64
+from utils.utils_security import encrypt_rsa, dencrypt_rsa
+
+
+def base64_encrypt(public_key, data):
+    return base64.b64encode(encrypt_rsa(public_key, data)).decode('utf-8')
 
 
 class MessageTestCase(TestCase):
@@ -44,19 +50,24 @@ class MessageTestCase(TestCase):
                                                 is_approved=True, privilege='M')
         membership3.save()
 
-        self.socrates_token = self.client.post('/api/user/login',
-                                               data={'user_name': 'socrates', 'password': 'socrates_pwd'},
-                                               content_type='application/json').json()['token']
+        response = self.client.get('/api/user/rsa')
+        self.assertEqual(response.status_code, 200)
+        self.public_key = response.json()['public_key'].encode('utf-8')
 
-        self.plato_token = self.client.post('/api/user/login',
-                                            data={'user_name': 'plato', 'password': 'plato_pwd'},
-                                            content_type='application/json').json()['token']
-        self.admin_token = self.client.post('/api/user/login',
-                                            data={'user_name': 'admin', 'password': 'admin_pwd'},
-                                            content_type='application/json').json()['token']
-        self.aristotle_token = self.client.post('/api/user/login',
-                                                data={'user_name': 'aristotle', 'password': 'aristotle_pwd'},
-                                                content_type='application/json').json()['token']
+        self.socrates_token = self.login('socrates', 'socrates_pwd').json()['token']
+        self.plato_token = self.login('plato', 'plato_pwd').json()['token']
+        self.admin_token = self.login('admin', 'admin_pwd').json()['token']
+        self.aristotle_token = self.login('aristotle', 'aristotle_pwd').json()['token']
+
+    def login(self, user_name, password):
+        body = {}
+        if user_name is not None:
+            body['user_name'] = user_name
+
+        if password is not None:
+            body['password'] = base64_encrypt(self.public_key, password)
+
+        return self.client.post('/api/user/login', data=body, content_type='application/json')
 
     def tearDown(self):
         for filename in os.listdir('assets/message'):
@@ -78,7 +89,6 @@ class MessageTestCase(TestCase):
                                         'msg_text': 'Hello World!',
                                         'msg_type': 'text',
                                     }, format='multipart', HTTP_AUTHORIZATION=self.socrates_token)
-
         self.assertEqual(response.status_code, 200)
         message = Message.objects.get(msg_id=response.json()['msg_id'])
         self.assertEqual(message.msg_text, 'Hello World!')

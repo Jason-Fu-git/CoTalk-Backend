@@ -1,3 +1,4 @@
+import base64
 from functools import wraps
 from django.core.files.uploadedfile import UploadedFile, InMemoryUploadedFile, SimpleUploadedFile
 from utils.utils_request import request_failed, BAD_REQUEST, SERVER_ERROR, UNAUTHORIZED
@@ -126,6 +127,13 @@ def require(body, key, dtype="string", err_msg=None, is_essential=True, req=None
     elif dtype == "string":
         try:
             val = str(val)
+            return val
+        except Exception as e:
+            raise KeyError(err_msg)
+
+    elif dtype == 'byte':
+        try:
+            val = base64.b64decode(val)
             return val
         except Exception as e:
             raise KeyError(err_msg)
