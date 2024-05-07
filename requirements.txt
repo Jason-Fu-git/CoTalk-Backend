@@ -7,9 +7,12 @@ redis
 daphne==4.1.0
 
 django-cors-headers==4.3.1
+django-imagekit
 
 pillow
 uwsgi
+
+PyEmail
 
 pytest
 pytest-django
