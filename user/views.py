@@ -3,7 +3,8 @@ from utils.utils_require import (require, CheckError, MAX_DESCRIPTION_LENGTH, MA
 from django.http import HttpRequest, JsonResponse, FileResponse
 from utils.utils_request import (BAD_METHOD, request_success, request_failed, BAD_REQUEST,
                                  CONFLICT, SERVER_ERROR, NOT_FOUND, UNAUTHORIZED, PRECONDITION_FAILED, return_field)
-from utils.utils_jwt import generate_jwt_token, verify_a_user, generate_salt
+from utils.utils_jwt import generate_jwt_token, verify_a_user, generate_salt, generate_code
+from utils.utils_time import get_timestamp
 import json
 import re
 from .models import User, Friendship
@@ -12,6 +13,7 @@ from ws.models import Client
 from asgiref.sync import async_to_sync
 from chat.models import Chat, Membership
 from message.models import Notification, leave_chat, change_privilege
+from .email_sender import send_email, generate_email_content
 
 
 @CheckError
@@ -171,7 +173,17 @@ def user_management(req: HttpRequest, user_id):
         if password is not None:
             if len(password) == 0 or len(password) > MAX_NAME_LENGTH:
                 return BAD_REQUEST("Password length error")
+            # check code
+            code = require(req.POST, "code", 'string', is_essential=True, req=req)
+            if user.verification_code is None or len(user.verification_code) == 0:
+                return BAD_REQUEST("Verification code not sent")
+            if str(code) != str(user.verification_code):
+                return UNAUTHORIZED("Invalid verification code")
+            if get_timestamp() > user.modify_time + 60 * 15:  # 15 minutes
+                return UNAUTHORIZED("Verification code expired")
+            # update password
             user.password = password
+            user.verification_code = ""
         if user_email is not None:
             if len(user_email) > MAX_EMAIL_LENGTH:
                 return BAD_REQUEST("Email length error")
@@ -503,4 +515,39 @@ def notification_detail_or_delete_or_read(req: HttpRequest, user_id, notificatio
     else:  # 'PUT'
         notification.is_read = True
         notification.save()
+    return request_success()
+
+
+def user_verification(req: HttpRequest, user_id):
+    """
+    向绑定邮箱发送验证码
+    """
+    if req.method != 'PUT':
+        return BAD_METHOD  # 405
+
+    try:
+        user_id = int(user_id)
+    except ValueError as e:
+        return BAD_REQUEST("Invalid user id : must be integer")  # 400
+
+    if not User.objects.filter(user_id=user_id).exists():
+        return NOT_FOUND(NOT_FOUND_USER_ID)  # 404
+
+    user = User.objects.get(user_id=user_id)
+
+    verify_a_user(salt=user.jwt_token_salt, req=req, user_id=user_id)
+
+    # send code
+    code = generate_code(6)
+    email_content = generate_email_content(user.user_email, code)
+    success = send_email(user.user_email, email_content.as_string())
+
+    if not success:
+        return SERVER_ERROR("Failed to send email")
+
+    # save code
+    user.verification_code = code
+    user.modify_time = get_timestamp()
+    user.save()
+
     return request_success()
