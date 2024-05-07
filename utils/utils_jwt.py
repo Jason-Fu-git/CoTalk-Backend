@@ -16,6 +16,13 @@ EXPIRE_IN_SECONDS = 60 * 60 * 24 * 1  # 1 day
 ALT_CHARS = "-_".encode("utf-8")
 
 
+def generate_code(length):
+    code = ""
+    for i in range(length):
+        code += secrets.choice("0123456789")
+    return code
+
+
 def generate_salt():
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M")
     random_string = secrets.token_urlsafe(32)

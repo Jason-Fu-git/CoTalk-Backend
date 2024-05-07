@@ -193,10 +193,10 @@ class UserTestCase(TestCase):
         login_response = self.login(user_name='admin', password='admin_pwd')
         update_response = self.update(user_id=login_response.json()['user_id'],
                                       token=login_response.json()['token'],
-                                      user_name='admin1', user_icon=None, password='admin1_pwd',
+                                      user_name='admin1', user_icon=None,
                                       user_email='123@qq.com', description='hello')
         self.assertEqual(update_response.status_code, 200)
-        login_again_response = self.login(user_name='admin1', password='admin1_pwd')
+        login_again_response = self.login(user_name='admin1', password='admin_pwd')
         self.assertEqual(login_again_response.status_code, 200)
         self.assertEqual(login_again_response.json()['user_id'], login_response.json()['user_id'])
         self.assertEqual(login_again_response.json()['user_name'], 'admin1')

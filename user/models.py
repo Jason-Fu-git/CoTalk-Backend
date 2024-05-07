@@ -27,11 +27,13 @@ class User(models.Model):
 
     register_time = models.FloatField(default=get_timestamp)
     login_time = models.FloatField(default=get_timestamp)
+    modify_time = models.FloatField(default=get_timestamp)
 
     user_email = models.CharField(max_length=MAX_EMAIL_LENGTH, blank=True)
     user_icon = models.ImageField(upload_to='assets/avatars/', blank=True)
 
     jwt_token_salt = models.BinaryField(max_length=100, default=b'\x00' * 16)
+    verification_code = models.CharField(max_length=6, blank=True)
 
     def serialize(self):
         return {
