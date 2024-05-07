@@ -1,6 +1,8 @@
 from django.db import models
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
+from imagekit.models import ProcessedImageField
+from imagekit.processors import ResizeToFit
 
 from utils.utils_time import get_timestamp
 from utils.utils_require import MAX_NAME_LENGTH, MAX_EMAIL_LENGTH, MAX_DESCRIPTION_LENGTH
@@ -30,7 +32,10 @@ class User(models.Model):
     modify_time = models.FloatField(default=get_timestamp)
 
     user_email = models.CharField(max_length=MAX_EMAIL_LENGTH, blank=True)
-    user_icon = models.ImageField(upload_to='assets/avatars/', blank=True)
+    user_icon = ProcessedImageField(upload_to='assets/avatars/',
+                                    processors=[ResizeToFit(200, 200)],
+                                    options={'quality': 30},
+                                    blank=True)
 
     jwt_token_salt = models.BinaryField(max_length=100, default=b'\x00' * 16)
     verification_code = models.CharField(max_length=6, blank=True)
