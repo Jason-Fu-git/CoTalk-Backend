@@ -3,6 +3,7 @@ from user.models import User
 from chat.models import Chat, Membership
 from message.models import Message, Notification
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.contrib.auth.hashers import make_password
 import os
 
 
@@ -10,27 +11,27 @@ class MessageTestCase(TestCase):
     def setUp(self):
         self.socrates = User.objects.create(
             user_name='socrates',
-            password='socrates_pwd',
+            password=make_password('socrates_pwd'),
             description='A great philosopher'
         )
         self.socrates.save()
         self.plato = User.objects.create(
             user_name='plato',
-            password='plato_pwd',
+            password=make_password('plato_pwd'),
         )
         self.plato.save()
         self.aristotle = User.objects.create(
             user_name='aristotle',
-            password='aristotle_pwd',
+            password=make_password('aristotle_pwd'),
         )
         self.admin = User.objects.create(
             user_name='admin',
-            password='admin_pwd',
+            password=make_password('admin_pwd'),
         )
 
         self.aristotle.save()
         self.athens = Chat.objects.create(
-            chat_name='Athens',
+            chat_name=make_password('Athens'),
             is_private=False
         )
         membership1 = Membership.objects.create(user_id=self.socrates.user_id, chat_id=self.athens.chat_id

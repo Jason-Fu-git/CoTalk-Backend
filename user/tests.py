@@ -1,9 +1,10 @@
 from django.test import TestCase
 from .models import User
-from utils.utils_jwt import generate_jwt_token
+from utils.utils_security import generate_jwt_token
 from utils.utils_time import get_timestamp
 from chat.models import Chat, Membership
 from message.models import Notification, Message
+from django.contrib.auth.hashers import make_password
 import json
 
 
@@ -12,30 +13,30 @@ class UserTestCase(TestCase):
     def setUp(self):
         self.admin = User.objects.create(
             user_name='admin',
-            password='admin_pwd',
+            password=make_password('admin_pwd'),
             description='Administrator',
         )
         self.admin.save()
         self.guest = User.objects.create(
             user_name='guest',
-            password='guest_pwd',
+            password=make_password('guest_pwd'),
             user_email='guest@Athens.com',
         )
         self.guest.save()
         self.socrates = User.objects.create(
             user_name='Athens_socrates',
-            password='socrates_pwd',
+            password=make_password('socrates_pwd'),
             description='A great philosopher'
         )
         self.socrates.save()
         self.plato = User.objects.create(
             user_name='Athens_plato',
-            password='plato_pwd',
+            password=make_password('plato_pwd'),
         )
         self.plato.save()
         self.aristotle = User.objects.create(
             user_name='Athens_aristotle',
-            password='aristotle_pwd',
+            password=make_password('aristotle_pwd'),
         )
         self.aristotle.save()
 
@@ -142,6 +143,7 @@ class UserTestCase(TestCase):
     # === login section ===
     def test_login_success(self):
         response = self.login(user_name='admin', password='admin_pwd')
+        print(response.json())
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['user_name'], 'admin')
         self.assertTrue(response.json()['token'])
