@@ -4,14 +4,15 @@ from .consumers import WSConsumer
 from channels.db import database_sync_to_async
 from user.models import User
 from chat.models import Chat, Membership
+from django.contrib.auth.hashers import make_password
 
 
 class WSTests(TestCase):
     # 执行此单元测试前一定要运行redis!
     def setUp(self):
         # create 2 users and 1 chat
-        self.admin = User.objects.create(user_name='admin', password='admin_pwd')
-        self.guest = User.objects.create(user_name='guest', password='guest_pwd')
+        self.admin = User.objects.create(user_name='admin', password=make_password('admin_pwd'))
+        self.guest = User.objects.create(user_name='guest', password=make_password('guest_pwd'))
         self.chat = Chat.objects.create(chat_name='test_chat', is_private=False)
         Membership.objects.create(user=self.admin, chat=self.chat, privilege='O', is_approved=True)
         Membership.objects.create(user=self.guest, chat=self.chat, privilege='M', is_approved=True)
