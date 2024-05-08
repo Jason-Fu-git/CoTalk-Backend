@@ -2,6 +2,7 @@ from django.test import TestCase
 from user.models import User
 from chat.models import Chat, Membership
 from message.models import Notification, Message
+from django.contrib.auth.hashers import make_password
 
 
 class ChatTestCase(TestCase):
@@ -9,18 +10,18 @@ class ChatTestCase(TestCase):
     def setUp(self):
         self.socrates = User.objects.create(
             user_name='socrates',
-            password='socrates_pwd',
+            password=make_password('socrates_pwd'),
             description='A great philosopher'
         )
         self.socrates.save()
         self.plato = User.objects.create(
             user_name='plato',
-            password='plato_pwd',
+            password=make_password('plato_pwd'),
         )
         self.plato.save()
         self.aristotle = User.objects.create(
             user_name='aristotle',
-            password='aristotle_pwd',
+            password=make_password('aristotle_pwd'),
         )
         self.aristotle.save()
         self.athens = Chat.objects.create(
