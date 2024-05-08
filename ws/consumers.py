@@ -7,7 +7,7 @@ import urllib.parse
 from .models import Client
 from user.models import User
 from message.models import Message
-from utils.utils_security import verify_a_user
+from utils.utils_jwt import verify_a_user
 from utils.utils_require import require
 from django.utils import timezone
 

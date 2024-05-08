@@ -3,7 +3,7 @@ from utils.utils_require import (require, CheckError, MAX_DESCRIPTION_LENGTH, MA
 from django.http import HttpRequest, JsonResponse
 from utils.utils_request import (BAD_METHOD, request_success, request_failed, BAD_REQUEST,
                                  CONFLICT, SERVER_ERROR, NOT_FOUND, UNAUTHORIZED, PRECONDITION_FAILED, return_field)
-from utils.utils_security import generate_jwt_token, verify_a_user, generate_salt
+from utils.utils_jwt import generate_jwt_token, verify_a_user, generate_salt
 import json
 from user.models import User
 from .models import Chat, Membership
