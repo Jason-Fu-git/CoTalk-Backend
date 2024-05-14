@@ -169,7 +169,6 @@ def user_management(req: HttpRequest, user_id):
     # passed all security check, update user
     if req.method == "POST":
         user_name = require(req.POST, "user_name", 'string', is_essential=False, req=req)
-        old_password = require(req.POST, "old_password", 'string', req=req)
         password = require(req.POST, "password", 'string', is_essential=False, req=req)
         user_email = require(req.POST, "user_email", 'string', is_essential=False, req=req)
         user_phone = require(req.POST, "user_phone", "string", is_essential=False, req=req)
@@ -195,6 +194,7 @@ def user_management(req: HttpRequest, user_id):
             user.verification_code = ""
         else:
             # other change needs password verification
+            old_password = require(req.POST, "old_password", 'string', req=req)
             if not check_password(old_password, user.password):
                 return UNAUTHORIZED("Invalid password")
 
