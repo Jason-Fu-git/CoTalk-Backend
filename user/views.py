@@ -231,10 +231,8 @@ def user_management(req: HttpRequest, user_id):
         # first delete the private chats
         private_chats = Chat.objects.filter(is_private=True)
         for chat in private_chats:
-            print(chat)
             if (chat.get_memberships()[0].user.user_id == user_id
                     or chat.get_memberships()[1].user.user_id == user_id):
-                print(chat, 'deleted')
                 chat.get_memberships().delete()
                 chat.delete()
         # passed all security check, delete user
