@@ -74,7 +74,8 @@ class UserTestCase(TestCase):
 
         return self.client.post('/api/user/login', data=body, content_type='application/json')
 
-    def update(self, user_id, token, user_name=None, password=None, user_email=None, user_phone=None, user_icon=None,
+    def update(self, user_id, token, old_password, user_name=None, password=None, user_email=None, user_phone=None,
+               user_icon=None,
                description=None):
         body = {}
         if user_name is not None:
@@ -82,6 +83,9 @@ class UserTestCase(TestCase):
 
         if password is not None:
             body['password'] = password
+
+        if old_password is not None:
+            body['old_password'] = old_password
 
         if user_email is not None:
             body['user_email'] = user_email
@@ -211,6 +215,7 @@ class UserTestCase(TestCase):
         login_response = self.login(user_name='admin', password='admin_pwd')
         update_response = self.update(user_id=login_response.json()['user_id'],
                                       token=login_response.json()['token'],
+                                      old_password='admin_pwd',
                                       user_name='admin1', user_icon=None, user_phone="1283902132901",
                                       user_email='123@qq.com', description='hello')
         self.assertEqual(update_response.status_code, 200)
@@ -222,16 +227,32 @@ class UserTestCase(TestCase):
         self.assertEqual(login_again_response.json()['user_phone'], '1283902132901')
         self.assertEqual(login_again_response.json()['description'], 'hello')
 
+    def test_update_wrong_pwd(self):
+        login_admin = self.login(user_name='admin', password='admin_pwd')
+        login_guest = self.login(user_name='guest', password='guest_pwd')
+        response = self.update(user_id=login_admin.json()['user_id'],
+                               old_password='guest_pwd',
+                               token=login_admin.json()['token'],
+                               user_name='admin1', user_icon=None)
+        self.assertEqual(response.status_code, 401)
+        response = self.update(user_id=login_admin.json()['user_id'],
+                               old_password=None,
+                               token=login_admin.json()['token'],
+                               user_name='admin1', user_icon=None)
+        self.assertEqual(response.status_code, 400)
+
     def test_update_wrong_token(self):
         login_admin = self.login(user_name='admin', password='admin_pwd')
         login_guest = self.login(user_name='guest', password='guest_pwd')
         response = self.update(user_id=login_admin.json()['user_id'],
+                               old_password='admin_pwd',
                                token=login_guest.json()['token'],
                                user_name='admin1', user_icon=None)
         self.assertEqual(response.status_code, 401)
 
     def test_update_wrong_user_id(self):
         response = self.update(user_id=1821838,
+                               old_password='admin_pwd',
                                token=self.login(user_name='admin', password='admin_pwd').json()['token'],
                                user_name='admin1', user_icon=None)
         self.assertEqual(response.status_code, 404)
@@ -239,6 +260,7 @@ class UserTestCase(TestCase):
     def test_update_user_name_conflict(self):
         login_admin = self.login(user_name='admin', password='admin_pwd')
         response = self.update(user_id=login_admin.json()['user_id'],
+                               old_password='admin_pwd',
                                token=login_admin.json()['token'],
                                user_name='guest', user_icon=None)
         self.assertEqual(response.status_code, 409)
@@ -246,10 +268,12 @@ class UserTestCase(TestCase):
     def test_update_invalid_parameters(self):
         login_admin = self.login(user_name='admin', password='admin_pwd')
         response = self.update(user_id=login_admin.json()['user_id'],
+                               old_password='admin_pwd',
                                token=None,
                                user_name='admin1')
         self.assertEqual(response.status_code, 400)
         response = self.update(user_id=login_admin.json()['user_id'],
+                               old_password='admin_pwd',
                                token=login_admin.json()['token'],
                                user_name="""
             1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
@@ -261,6 +285,7 @@ class UserTestCase(TestCase):
         self.assertEqual(response.status_code, 400)
         response = self.update(user_id=login_admin.json()['user_id'],
                                token=login_admin.json()['token'],
+                               old_password='admin_pwd',
                                password="""
             1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
             1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
@@ -271,20 +296,24 @@ class UserTestCase(TestCase):
         self.assertEqual(response.status_code, 400)
         response = self.update(user_id=login_admin.json()['user_id'],
                                token=login_admin.json()['token'],
+                               old_password='admin_pwd',
                                user_email='123@')
         self.assertEqual(response.status_code, 400)
         response = self.update(user_id=login_admin.json()['user_id'],
                                token=login_admin.json()['token'],
+                               old_password='admin_pwd',
                                user_phone='1232@')
         self.assertEqual(response.status_code, 400)
         response = self.update(user_id=login_admin.json()['user_id'],
                                token=login_admin.json()['token'],
+                               old_password='admin_pwd',
                                user_phone="""
                                1234512345123451234512345123451234512345123451234512345123451234512345123451234512345
                                1234512345123451234512345123451234512345123451234512345123451234512345123451234512345
                                """)
         self.assertEqual(response.status_code, 400)
         response = self.update(user_id=login_admin.json()['user_id'],
+                               old_password='admin_pwd',
                                token=login_admin.json()['token'],
                                description="""
             1234512345123451234512345123451234512345123451234512345123451234512345123451234512345\\
