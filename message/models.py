@@ -41,7 +41,6 @@ class Message(models.Model):
 
     is_system = models.BooleanField(default=False)
 
-    # todo : 解决返回文件的问题
     def serialize(self):
         return {
             'msg_id': self.msg_id,

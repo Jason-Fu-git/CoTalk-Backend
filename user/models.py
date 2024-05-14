@@ -32,6 +32,7 @@ class User(models.Model):
     modify_time = models.FloatField(default=get_timestamp)
 
     user_email = models.CharField(max_length=MAX_EMAIL_LENGTH, blank=True)
+    user_phone = models.CharField(max_length=MAX_EMAIL_LENGTH, blank=True)
     user_icon = ProcessedImageField(upload_to='assets/avatars/',
                                     processors=[ResizeToFit(200, 200)],
                                     options={'quality': 30},
@@ -45,6 +46,7 @@ class User(models.Model):
             "user_id": self.user_id,
             "user_name": self.user_name,
             "user_email": self.user_email,
+            "user_phone" : self.user_phone,
             "description": self.description,
             "register_time": self.register_time,
         }
