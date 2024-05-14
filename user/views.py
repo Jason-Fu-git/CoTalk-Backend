@@ -447,7 +447,7 @@ def user_chats_management(req: HttpRequest, user_id):
             elif is_owner:  # owner exits, handover owner privilege
 
                 if chat.get_admins().exists():
-                    new_owner = chat.get_admins().first()
+                    new_owner = chat.get_admins().first().user
                 else:
                     new_owner = chat.get_memberships().first().user
 
