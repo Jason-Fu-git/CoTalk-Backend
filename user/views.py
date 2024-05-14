@@ -169,20 +169,14 @@ def user_management(req: HttpRequest, user_id):
     # passed all security check, update user
     if req.method == "POST":
         user_name = require(req.POST, "user_name", 'string', is_essential=False, req=req)
+        old_password = require(req.POST, "old_password", 'string', req=req)
         password = require(req.POST, "password", 'string', is_essential=False, req=req)
         user_email = require(req.POST, "user_email", 'string', is_essential=False, req=req)
         user_phone = require(req.POST, "user_phone", "string", is_essential=False, req=req)
         description = require(req.POST, "description", 'string', is_essential=False, req=req)
         avatar = require(req.FILES, "avatar", 'image', is_essential=False)
-        # update
-        if user_name is not None:
-            if len(user_name) > MAX_NAME_LENGTH:
-                return BAD_REQUEST("Username length error")
-            if user_name != User.objects.get(user_id=user_id).user_name and User.objects.filter(
-                    user_name=user_name).exists():
-                return CONFLICT("Username conflict")
-            if len(user_name) > 0:
-                user.user_name = user_name
+
+        # password change needs verification code
         if password is not None:
             if len(password) == 0 or len(password) > MAX_NAME_LENGTH:
                 return BAD_REQUEST("Password length error")
@@ -199,25 +193,39 @@ def user_management(req: HttpRequest, user_id):
             # update password
             user.password = password
             user.verification_code = ""
-        if user_email is not None:
-            if len(user_email) == 0 or len(user_email) > MAX_EMAIL_LENGTH:
-                return BAD_REQUEST("Email length error")
-            if not re.match(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$", user_email):
-                return BAD_REQUEST("Invalid email address")
-            user.user_email = user_email
-        if user_phone is not None:
-            if len(user_phone) == 0 or len(user_phone) > MAX_EMAIL_LENGTH:
-                return BAD_REQUEST("Phone length error")
-            if not re.match(r"^[0-9]+$", user_phone):
-                return BAD_REQUEST("Invalid phone number")
-            user.user_phone = user_phone
-        if description is not None:
-            if len(description) > MAX_DESCRIPTION_LENGTH:
-                return BAD_REQUEST("Description length error")
-            if len(description) > 0:
-                user.description = description
-        if avatar is not None:
-            user.user_icon = avatar
+        else:
+            # other change needs password verification
+            if not check_password(old_password, user.password):
+                return UNAUTHORIZED("Invalid password")
+
+            # update
+            if user_name is not None:
+                if len(user_name) > MAX_NAME_LENGTH:
+                    return BAD_REQUEST("Username length error")
+                if user_name != User.objects.get(user_id=user_id).user_name and User.objects.filter(
+                        user_name=user_name).exists():
+                    return CONFLICT("Username conflict")
+                if len(user_name) > 0:
+                    user.user_name = user_name
+            if user_email is not None:
+                if len(user_email) == 0 or len(user_email) > MAX_EMAIL_LENGTH:
+                    return BAD_REQUEST("Email length error")
+                if not re.match(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$", user_email):
+                    return BAD_REQUEST("Invalid email address")
+                user.user_email = user_email
+            if user_phone is not None:
+                if len(user_phone) == 0 or len(user_phone) > MAX_EMAIL_LENGTH:
+                    return BAD_REQUEST("Phone length error")
+                if not re.match(r"^[0-9]+$", user_phone):
+                    return BAD_REQUEST("Invalid phone number")
+                user.user_phone = user_phone
+            if description is not None:
+                if len(description) > MAX_DESCRIPTION_LENGTH:
+                    return BAD_REQUEST("Description length error")
+                if len(description) > 0:
+                    user.description = description
+            if avatar is not None:
+                user.user_icon = avatar
         user.save()
     else:  # DELETE
         # first delete the private chats
