@@ -231,7 +231,8 @@ def user_management(req: HttpRequest, user_id):
         # first delete the private chats
         private_chats = Chat.objects.filter(is_private=True)
         for chat in private_chats:
-            if chat.get_memberships()[0] == user_id or chat.get_memberships()[1] == user_id:
+            if (chat.get_memberships()[0].user.user_id == user_id
+                    or chat.get_memberships()[1].user.user_id == user_id):
                 chat.get_memberships().delete()
                 chat.delete()
         # passed all security check, delete user
@@ -447,7 +448,7 @@ def user_chats_management(req: HttpRequest, user_id):
             elif is_owner:  # owner exits, handover owner privilege
 
                 if chat.get_admins().exists():
-                    new_owner = chat.get_admins().first()
+                    new_owner = chat.get_admins().first().user
                 else:
                     new_owner = chat.get_memberships().first().user
 
