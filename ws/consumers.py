@@ -220,7 +220,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         # 利用路由变量确定聊天群组
         self.id = self.scope['url_route']['kwargs']['chat_id']
         self.room_group_name = f'chat_{self.id}'
-        # TODO: 身份验证
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name

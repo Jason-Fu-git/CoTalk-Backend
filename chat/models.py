@@ -37,8 +37,6 @@ class Chat(models.Model):
         获取群聊的群主，必须唯一
         """
         queryset = self.get_memberships().filter(privilege='O').all()
-        if queryset.count() != 1:
-            pass  # TODO 抛出异常
         return queryset.first().user
 
     def get_admins(self) -> models.QuerySet:
