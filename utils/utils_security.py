@@ -90,13 +90,11 @@ def check_jwt_token(salt, token: str) -> Optional[dict]:
     signature_b64_check = b64url_encode(signature_check)
 
     if signature_b64_check != signature_b64:
-        print("Signature not match")
         return None
 
     # Check expire
     payload = json.loads(payload_str)
     if payload["exp"] < time.time():
-        print("Token expired")
         return None
 
     return payload["data"]

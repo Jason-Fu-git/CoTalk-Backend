@@ -29,6 +29,8 @@ def register(req: HttpRequest):
     password = require(req.POST, "password", "string", err_msg="Missing or error type of [password]", req=req)
     user_email = require(req.POST, "user_email", "string", err_msg="Missing or error type of [user_email]",
                          is_essential=False, req=req)
+    user_phone = require(req.POST, "user_phone", "string", err_msg="Missing or error type of [user_phone]",
+                         is_essential=False, req=req)
     description = require(req.POST, "description", "string", err_msg="Missing or error type of [description]",
                           is_essential=False, req=req)
     avatar = require(req.FILES, "avatar", "image", err_msg="Missing or error type of [avatar]", is_essential=False)
@@ -46,6 +48,12 @@ def register(req: HttpRequest):
         if not re.match(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$", user_email):
             return BAD_REQUEST("Invalid email address")  # 400
 
+    if user_phone is not None:
+        if len(user_phone) == 0 or len(user_phone) > MAX_EMAIL_LENGTH:
+            return BAD_REQUEST("Phone length error")  # 400
+        if not re.match(r"^[0123456789]+$", user_phone):
+            return BAD_REQUEST("Invalid phone number")  # 400
+
     if description is not None:
         if len(description) > MAX_DESCRIPTION_LENGTH:
             return BAD_REQUEST("Description length error")  # 400
@@ -59,6 +67,8 @@ def register(req: HttpRequest):
         user = User.objects.create(user_name=user_name, password=password, jwt_token_salt=generate_salt())
         if user_email is not None:
             user.user_email = user_email
+        if user_phone is not None:
+            user.user_phone = user_phone
         if avatar is not None:
             user.user_icon = avatar
         if description is not None and len(description) > 0:
@@ -70,6 +80,7 @@ def register(req: HttpRequest):
             "user_id": user.user_id,
             "user_name": user.user_name,
             "user_email": user.user_email,
+            "user_phone": user.user_phone,
             "description": user.description,
             "register_time": user.register_time,
         })
@@ -86,8 +97,6 @@ def login(req: HttpRequest):
     body = json.loads(req.body.decode("utf-8"))
     user_name = require(body, "user_name", "string", err_msg="Missing or error type of [user_name]")
     password = require(body, "password", "string", err_msg="Missing or error type of [password]")
-    # todo : 后续添加2FA接口
-
     if not User.objects.filter(user_name=user_name).exists():
         return NOT_FOUND("User Not Found")  # 404
 
@@ -104,6 +113,7 @@ def login(req: HttpRequest):
         "user_id": user.user_id,
         "user_name": user.user_name,
         "user_email": user.user_email,
+        "user_phone": user.user_phone,
         "description": user.description,
         "register_time": user.register_time,
     })
@@ -156,12 +166,12 @@ def user_management(req: HttpRequest, user_id):
 
     verify_a_user(salt=SALT, user_id=user.user_id, req=req)
 
-    # todo : 添加2FA/密码验证
     # passed all security check, update user
     if req.method == "POST":
         user_name = require(req.POST, "user_name", 'string', is_essential=False, req=req)
         password = require(req.POST, "password", 'string', is_essential=False, req=req)
         user_email = require(req.POST, "user_email", 'string', is_essential=False, req=req)
+        user_phone = require(req.POST, "user_phone", "string", is_essential=False, req=req)
         description = require(req.POST, "description", 'string', is_essential=False, req=req)
         avatar = require(req.FILES, "avatar", 'image', is_essential=False)
         # update
@@ -190,12 +200,17 @@ def user_management(req: HttpRequest, user_id):
             user.password = password
             user.verification_code = ""
         if user_email is not None:
-            if len(user_email) > MAX_EMAIL_LENGTH:
+            if len(user_email) == 0 or len(user_email) > MAX_EMAIL_LENGTH:
                 return BAD_REQUEST("Email length error")
             if not re.match(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$", user_email):
                 return BAD_REQUEST("Invalid email address")
-            if len(user_email) > 0:
-                user.user_email = user_email
+            user.user_email = user_email
+        if user_phone is not None:
+            if len(user_phone) == 0 or len(user_phone) > MAX_EMAIL_LENGTH:
+                return BAD_REQUEST("Phone length error")
+            if not re.match(r"^[0-9]+$", user_phone):
+                return BAD_REQUEST("Invalid phone number")
+            user.user_phone = user_phone
         if description is not None:
             if len(description) > MAX_DESCRIPTION_LENGTH:
                 return BAD_REQUEST("Description length error")
@@ -205,6 +220,12 @@ def user_management(req: HttpRequest, user_id):
             user.user_icon = avatar
         user.save()
     else:  # DELETE
+        # first delete the private chats
+        private_chats = Chat.objects.filter(is_private=True)
+        for chat in private_chats:
+            if chat.get_memberships()[0] == user_id or chat.get_memberships()[1] == user_id:
+                chat.get_memberships().delete()
+                chat.delete()
         # passed all security check, delete user
         user.delete()
     return request_success()
@@ -237,7 +258,7 @@ def friend_management(req: HttpRequest, user_id):
         return request_success({
             "friends": [
                 {**return_field(User.objects.get(user_id=friend['friend']).serialize(),
-                                ['user_id', 'user_name', 'user_email', 'description', 'register_time'])
+                                ['user_id', 'user_name', 'user_email', 'user_phone', 'description', 'register_time'])
                     , 'group': friend['group']}
                 for friend in friends
             ]
@@ -356,10 +377,13 @@ def search(req: HttpRequest):
             users = User.objects.all()
         else:
             users = User.objects.filter(user_name__contains=search_text) | User.objects.filter(
-                user_email__contains=search_text) | User.objects.filter(description__contains=search_text)
+                user_email__contains=search_text) | User.objects.filter(
+                description__contains=search_text) | User.objects.filter(
+                user_phone__contains=search_text)
         return request_success({
             'users': [
-                return_field(user.serialize(), ['user_id', 'user_name', 'user_email', 'description', 'register_time'])
+                return_field(user.serialize(),
+                             ['user_id', 'user_name', 'user_email', 'user_phone', 'description', 'register_time'])
                 for user in users if user.user_name != 'system'
             ]
         })

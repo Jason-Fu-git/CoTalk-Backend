@@ -144,6 +144,7 @@ def chat_members(req: HttpRequest, chat_id):
                     'user_id': membership.user.user_id,
                     'user_name': membership.user.user_name,
                     'user_email': membership.user.user_email,
+                    'user_phone': membership.user.user_phone,
                     'description': membership.user.description,
                     'register_time': membership.user.register_time,
                     'privilege': membership.privilege,
