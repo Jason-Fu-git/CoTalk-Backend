@@ -49,6 +49,7 @@ def create_a_chat(req: HttpRequest):
             notification_dict = {
                 'type': 'chat.management',
                 'status': 'make invitation',
+                'text': f'{user.user_name} 邀请您加入聊天室 {chat.chat_name}',
                 'user_id': user_id,
                 'chat_id': chat.chat_id,
                 'is_approved': True,
@@ -186,6 +187,7 @@ def chat_members(req: HttpRequest, chat_id):
                         notification_dict = {
                             'type': 'chat.management',
                             'status': 'kicked out',
+                            'text': f'{user.user_name} 将您移出了聊天室 {Chat.objects.get(chat_id=chat_id).chat_name}',
                             'user_id': user_id,
                             'chat_id': chat_id,
                             'is_approved': False
@@ -211,6 +213,7 @@ def chat_members(req: HttpRequest, chat_id):
             notification_dict = {
                 'type': 'chat.management',
                 'status': 'make invitation',
+                'text': f'{user.user_name} 邀请您加入聊天室 {Chat.objects.get(chat_id=chat_id).chat_name}',
                 'user_id': user_id,
                 'chat_id': chat_id,
                 'is_approved': True
@@ -307,6 +310,7 @@ def chat_management(req: HttpRequest, chat_id):
     notification_dict = {
         'type': 'chat.management',
         'status': f'change to {change_to}',
+        'text': f'{user.user_name} 将您在聊天室 {Chat.objects.get(chat_id=chat_id).chat_name} 中的权限更改为 {change_to}',
         'user_id': user_id,
         'chat_id': chat_id,
         'is_approved': True

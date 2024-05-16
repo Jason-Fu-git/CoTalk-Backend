@@ -305,6 +305,7 @@ def friend_management(req: HttpRequest, user_id):
                     notification_dict = {
                         'type': 'user.friend.request',
                         'status': 'delete',
+                        'text': f'{user.user_name} 终止了与您的好友关系',
                         'user_id': user_id,
                         'is_approved': approve,
                     }
@@ -324,6 +325,7 @@ def friend_management(req: HttpRequest, user_id):
                     notification_dict = {
                         'type': 'user.friend.request',
                         'status': 'accept request',
+                        'text': f'{user.user_name} 接受了您的好友请求',
                         'user_id': user_id,
                         'is_approved': approve,
                     }
@@ -340,6 +342,7 @@ def friend_management(req: HttpRequest, user_id):
                     notification_dict = {
                         'type': 'user.friend.request',
                         'status': 'reject request',
+                        'text': f'{user.user_name} 拒绝了您的好友请求',
                         'user_id': user_id,
                         'is_approved': approve,
                     }
@@ -350,6 +353,7 @@ def friend_management(req: HttpRequest, user_id):
             notification_dict = {
                 'type': 'user.friend.request',
                 'status': 'make request',
+                'text': f'{user.user_name} 请求添加您为好友',
                 'user_id': user_id,
                 'is_approved': approve,
             }
